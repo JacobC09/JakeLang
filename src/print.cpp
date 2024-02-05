@@ -1,3 +1,4 @@
+#include "ast.h"
 #include "print.h"
 #include "debug.h"
 
@@ -23,5 +24,54 @@ void printToken(const Token& token) {
     } else {
         print((int) token.type);
         printf("Token{type=%s}\n", names[(int) token.type]);
+    }
+}
+
+void printExpr(Expr& expr, int indent) {
+    for (int i = 0; i < indent; i++) {
+        std::cout << "  ";
+    }
+
+    switch (expr.index()) {
+        case Expr::indexOf<NumLiteral>(): {
+            auto val = expr.as<NumLiteral>();
+            printf("NumLiteral{%d}\n", val.value);
+            break;
+        }
+
+        case Expr::indexOf<Ptr<AddExpr>>(): {
+            auto val = expr.as<Ptr<AddExpr>>();
+            print("AdditionExpr{}");
+            printExpr(val->left, indent + 1);
+            printExpr(val->right, indent + 1);
+            break;
+        }
+        
+        default:
+            break;
+    }
+}
+
+void printStmt(Stmt& stmt, int indent) {
+    for (int i = 0; i < indent; i++) {
+        print("  ");
+    }
+
+    switch (stmt.index()) {
+        case Stmt::indexOf<Ptr<ExprStmt>>(): {
+            auto val = stmt.as<Ptr<ExprStmt>>();
+            print("ExprStmt{}");
+            printExpr(val->expr, indent + 1);
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+void printAst(Ast& ast) {
+    for (auto stmt : ast.body) {
+        printStmt(stmt, 0);
     }
 }

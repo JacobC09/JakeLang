@@ -6,8 +6,8 @@ inline void print() {
     std::cout << std::endl;
 }
 
-template<typename T>
-inline void print(std::vector<T> vector) {
+template<typename Target>
+inline void print(std::vector<Target> vector) {
     std::cout << "{";
     for (int i = 0; i < vector.size(); i++) {
         std::cout << vector[i] << (i == vector.size() - 1 ? "}" : ", ");

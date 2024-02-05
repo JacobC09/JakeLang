@@ -1,13 +1,9 @@
 #include <iostream>
 #include <fstream>
-#include <string>
 #include <sstream>
-#include <chrono>
-#include <memory>
 #include "debug.h"
 #include "timer.h"
 #include "environment.h"
-#include "varient.h"
 
 std::string openFile(std::string path) {
     std::fstream file;
@@ -24,7 +20,6 @@ std::string openFile(std::string path) {
 
     return stream.str();
 }
-
 
 void runFile(std::string path) {
     std::string source = openFile(path);

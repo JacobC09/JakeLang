@@ -1,4 +1,6 @@
 #pragma once
 #include "scanner.h"
+#include "ast.h"
 
-void printToken(const Token& token);
+void printToken(Token& token);
+void printAst(Ast& ast);

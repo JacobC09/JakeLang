@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.2)
 project(JakeLang)
 
 set(CMAKE_BUILD_TYPE Debug)
@@ -11,6 +11,7 @@ add_executable(jake-lang
     "src/timer.cpp"
     "src/environment.cpp"
     "src/scanner.cpp"
+    "src/parser.cpp"
     "src/print.cpp"
 )
 
