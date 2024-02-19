@@ -19,8 +19,6 @@ using Stmt = Variant<
     Ptr<struct ExprStmt>
 >;
 
-// Expressions
-
 struct AddExpr {
     Expr left;
     Expr right;

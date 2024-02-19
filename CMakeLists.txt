@@ -17,7 +17,7 @@ add_executable(jake-lang
 
 # ---------- Linker Config ---------- #
 
-target_include_directories(jake-lang PRIVATE "./include/")
+target_include_directories(jake-lang PRIVATE "./include/" "./external/variant/include/")
 
 if (MSVC)
     target_compile_options(jake-lang PRIVATE /std:c++17 /W3 /wd4244)

@@ -7,7 +7,9 @@ Environment::Environment() {};
 
 Result Environment::run(std::string source) {
     Parser parser = Parser(source);
-    std::unique_ptr<Ast> ast = parser.parse();
+    Ast ast = parser.parse();
+
+    printAst(ast);
     
     return Result { ExitCode::Success };
 };

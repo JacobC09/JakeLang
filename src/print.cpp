@@ -32,15 +32,15 @@ void printExpr(Expr& expr, int indent) {
         std::cout << "  ";
     }
 
-    switch (expr.index()) {
-        case Expr::indexOf<NumLiteral>(): {
-            auto val = expr.as<NumLiteral>();
+    switch (expr.which()) {
+        case Expr::which<NumLiteral>(): {
+            auto val = expr.get<NumLiteral>();
             printf("NumLiteral{%d}\n", val.value);
             break;
         }
 
-        case Expr::indexOf<Ptr<AddExpr>>(): {
-            auto val = expr.as<Ptr<AddExpr>>();
+        case Expr::which<Ptr<AddExpr>>(): {
+            auto val = expr.get<Ptr<AddExpr>>();
             print("AdditionExpr{}");
             printExpr(val->left, indent + 1);
             printExpr(val->right, indent + 1);
@@ -57,9 +57,9 @@ void printStmt(Stmt& stmt, int indent) {
         print("  ");
     }
 
-    switch (stmt.index()) {
-        case Stmt::indexOf<Ptr<ExprStmt>>(): {
-            auto val = stmt.as<Ptr<ExprStmt>>();
+    switch (stmt.which()) {
+        case Stmt::which<Ptr<ExprStmt>>(): {
+            auto val = stmt.get<Ptr<ExprStmt>>();
             print("ExprStmt{}");
             printExpr(val->expr, indent + 1);
             break;

@@ -1,8 +1,14 @@
 #pragma once
-#include <memory>
-#include <variant>
 
-// Forward declaration safe std::unique_ptr
+#define MAPBOX_VARIANT_MINIMIZE_SIZE
+#define MAPBOX_VARIANT_OPTIMIZE_FOR_SPEED
+
+#include <memory>
+#include "mapbox/variant.hpp"
+
+template <typename... Types>
+using Variant = mapbox::util::variant<Types...>;
+
 template <typename T>
 class Ptr {
 public:
@@ -14,6 +20,7 @@ public:
         *_impl = *other._impl;
         return *this;
     }
+    
     ~Ptr() = default;
 
     T &operator*() { return *_impl; }
@@ -31,57 +38,4 @@ public:
 
 private:
     std::unique_ptr<T> _impl;
-};
-
-// Wrapper for variant (provides indexOf<T>)
-template <typename... Types>
-class Variant : public std::variant<Types...> {
-public:
-    using base = std::variant<Types...>;
-
-    using base::variant;
-    using base::emplace;
-    using base::index;
-    using base::swap;
-    using base::operator=;
-
-    template <typename T>
-    inline auto as() {
-        return std::get<T>(*this);
-    }
-
-    template <typename T>
-    inline auto as() const {
-        return std::get<T>(*this);
-    }
-
-    template <typename T>
-    inline bool is() {
-        constexpr size_t targetIndex = variant_index<T, Types...>::value;
-        return index() == targetIndex;
-    }
-
-    template <typename T>
-    static constexpr size_t indexOf() {
-        return variant_index<T, Types...>::value;
-    }
-
-private:
-    template <typename Target, typename... Rest>
-    struct variant_index;
-
-    template <typename Target, typename... Rest>
-    struct variant_index<Target, Target, Rest...> {
-        static constexpr int value = 0;
-    };
-
-    template <typename Target, typename First, typename... Rest>
-    struct variant_index<Target, First, Rest...> {
-        static constexpr int value = 1 + variant_index<Target, Rest...>::value;
-    };
-
-    template <typename Target>
-    struct variant_index<Target> {
-        static constexpr int value = -1;
-    };
 };
