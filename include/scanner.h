@@ -15,7 +15,7 @@ enum class TokenType {
     Less, LessEqual, PlusEqual, MinusEqual, SlashEqual, AsteriskEqual,
 
     // literals
-    Identifier, String, Number,
+    Identifier, String, Number, True, False, None,
 
     Error, EndOfFile
 };

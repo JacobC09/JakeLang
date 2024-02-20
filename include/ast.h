@@ -2,24 +2,55 @@
 #include <vector>
 #include "variant.h"
 
-// Literals
+// Empty
 
+struct Empty {};
+
+// Literals
 struct NumLiteral {
-    int value;
+    double value;
 };
+
+struct Identifier {
+    std::string value;
+};
+
+struct BoolLiteral {
+    bool value;
+};
+
+struct StrLiteral {
+    std::string value;
+};
+
+struct NoneLiteral {};
 
 // Variants
 
 using Expr = Variant<
+    Empty,
     NumLiteral,
-    Ptr<struct AddExpr>
+    BoolLiteral,
+    StrLiteral,
+    NoneLiteral,
+    Identifier,
+    Ptr<struct BinaryExpr>
 >;
 
 using Stmt = Variant<
     Ptr<struct ExprStmt>
 >;
 
-struct AddExpr {
+struct BinaryExpr {
+    enum Operation {
+        Addition,
+        Subtraction,
+        Multiplication,
+        Division,
+        Exponentiation
+    };
+
+    Operation operator;
     Expr left;
     Expr right;
 };

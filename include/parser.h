@@ -2,18 +2,27 @@
 #include "ast.h"
 #include "scanner.h"
 
+class Parser;
+
 enum class Precedence {
     None,
-    Assignment,  // =
-    Or,          // or
-    And,         // and
-    Equality,    // == !=
-    Comparison,  // < > <= >=
-    Term,        // + -
-    Factor,      // * /
-    Unary,       // ! -
-    Call,        // . ()
+    Assignment,     // =
+    Boolean,        // and
+    Equality,       // == !=
+    Comparison,     // < > <= >=
+    Term,           // + -
+    Factor,         // * /
+    Unary,          // ! -
+    Call,           // . ()
     Primary
+};
+
+using ParseFunc = Expr (Parser::*)(bool);
+
+struct ParseRule {
+    ParseFunc prefix;
+    ParseFunc infix;
+    Precedence precedence;
 };
 
 class Parser {
@@ -33,13 +42,15 @@ private:
     bool hadUnhandledError();
     bool isFinished();
 
-    Expr number();
-    Expr variable();
-    Expr string();
-    Expr literal();
-    Expr grouping();
-    Expr unary();
-    Expr binary();
+    ParseRule getRule(TokenType type);
+
+    Expr number(bool isLvalue);
+    Expr identifier(bool isLvalue);
+    Expr string(bool isLvalue);
+    Expr literal(bool isLvalue);
+    Expr grouping(bool isLvalue);
+    Expr unary(bool isLvalue);
+    Expr binary(bool isLvalue);
     Expr parsePrecedence(Precedence precedence);
     Expr expression();
 
@@ -54,7 +65,6 @@ private:
     Stmt classDeclaration();
     Stmt statement();
     
-
 private:
     bool hadError;
     Token cur;

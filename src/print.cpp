@@ -14,7 +14,7 @@ void printToken(const Token& token) {
         "Greater", "GreaterEqual",
         "Less", "LessEqual", "PlusEqual", "MinusEqual", "SlashEqual", "AsteriskEqual",
 
-        "Identifier", "String", "Number",
+        "Identifier", "String", "Number", "True", "False", "None",
 
         "Error", "EndOfFile"
     };
