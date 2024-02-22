@@ -1,7 +1,8 @@
 #include "scanner.h"
 
-Scanner::Scanner(std::string& src) : source(src) {
-    start = current = src.data();
+Scanner::Scanner(std::string src) : source(src) {
+    line = 0;
+    start = current = source.data();
     lineStart = start;
 }
 

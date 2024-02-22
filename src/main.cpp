@@ -10,7 +10,7 @@ std::string openFile(std::string path) {
 
     file.open(path);
     if (!file.is_open()) {
-        std::cout << "[Error] Failed to open source file\n";
+        print("[Error] Failed to open source file");
         return std::string{};
     }
 

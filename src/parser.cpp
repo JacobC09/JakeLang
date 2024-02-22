@@ -1,8 +1,8 @@
 #include "parser.h"
-#include "variant"
 #include "util.h"
 
-Parser::Parser(std::string source) : scanner(source) {
+Parser::Parser(std::string source) {
+    scanner = Scanner(source);
     hadError = false;
 }
 
@@ -65,8 +65,8 @@ bool Parser::isFinished() {
     return check(TokenType::EndOfFile) || hadError;
 }
 
-Expr Parser::expr() {
-    equality();
+Expr Parser::expression() {
+    return equality();
 }
 
 Expr Parser::equality() {
@@ -75,6 +75,12 @@ Expr Parser::equality() {
     while (match(TokenType::EqualEqual, TokenType::BangEqual)) {
         BinaryExpr::Operation op;
         switch (prev.type) {
+            case TokenType::EqualEqual:
+                op = BinaryExpr::Operation::Equal;
+                break;
+            case TokenType::BangEqual:
+                op = BinaryExpr::Operation::NotEqual;
+                break;
             default: break;
         }
         
@@ -164,26 +170,73 @@ Expr Parser::unary() {
             return UnaryExpr {UnaryExpr::Operation::Negative, primary()};
     } else if (match(TokenType::Bang)) {
         bool isNegate = true;
-        while (match(TokenType::Minus)) isNegate = ~isNegate;
+        while (match(TokenType::Minus)) isNegate = !isNegate;
 
         if (isNegate)
             return UnaryExpr {UnaryExpr::Operation::Negate, primary()};
     }
+
+    return primary();
 }
 
 Expr Parser::primary() {
+    switch (cur.type) {
+        case TokenType::True:
+            return BoolLiteral {true};
+        case TokenType::False:
+            return BoolLiteral {false};
+
+        case TokenType::Number:
+            return number();
+
+        case TokenType::Identifier:
+            return identifer();
+
+        case TokenType::String:
+            return string();
+
+        case TokenType::LeftParen:
+            return grouping();
+        
+        default:
+            errorAt(cur, "Expected an expression");
+            return Empty {};
+    }
 }
 
+Expr Parser::number() {
+    if (prev.value.front() == '.')
+        return NumLiteral {std::stod("0." + std::string(prev.value))};
+
+    return NumLiteral {std::stod(std::string(prev.value))};
+}
+
+Expr Parser::string() {
+    return StrLiteral {std::string(prev.value.data() + 1, prev.value.size() - 2)};
+}
+
+Expr Parser::identifer() {
+    return Identifier {std::string(prev.value)};
+}
+
+Expr Parser::grouping() {
+    advance();
+    Expr expr = expression();
+    consume(TokenType::LeftParen, "Expected ')' after grouping");
+    return expr;
+}
 
 Stmt Parser::exprStmt() {
-    Stmt stmt = ExprStmt {expr()};
+    Stmt stmt = ExprStmt {expression()};
     consume(TokenType::Semicolon, "Expected ';' after expression");
     return stmt;
 }
 
 Stmt Parser::statement() {
-    switch (cur.type) {
-        default:
-            return exprStmt();
-    }
+    return exprStmt();
+
+    // switch (cur.type) {
+    //     default:
+    //         return exprStmt();
+    // }
 }

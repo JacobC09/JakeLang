@@ -47,13 +47,18 @@ private:
 
     ParseRule getRule(TokenType type);
 
-    Expr expr();
+    Expr expression();
     Expr equality();
     Expr comparison();
     Expr term();
     Expr factor();
     Expr unary();
     Expr primary();
+
+    Expr number();
+    Expr string();
+    Expr identifer();
+    Expr grouping();
     // Expr literal();
     // Expr number(bool isLvalue);
     // Expr identifier(bool isLvalue);

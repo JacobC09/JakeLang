@@ -34,7 +34,7 @@ add_custom_target(
     copy_tests
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/${TEST_DIR}
-        ${CMAKE_BINARY_DIR}/${TEST_DIR}
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TEST_DIR}
 )
 
 add_dependencies(jake-lang copy_tests)

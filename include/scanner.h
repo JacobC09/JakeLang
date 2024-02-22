@@ -30,7 +30,8 @@ struct Token {
 
 class Scanner {
 public:
-    Scanner(std::string& src);
+    Scanner() = default;
+    Scanner(std::string src);
 
     Token nextToken();
 
@@ -53,5 +54,5 @@ private:
     char* lineStart;
     char* start;
     char* current;
-    std::string& source;
+    std::string source;
 };

@@ -35,15 +35,37 @@ void printExpr(Expr& expr, int indent) {
     switch (expr.which()) {
         case Expr::which<NumLiteral>(): {
             auto val = expr.get<NumLiteral>();
-            printf("NumLiteral{%d}\n", val.value);
+            printf("NumLiteral{%f}\n", val.value);
             break;
         }
 
-        case Expr::which<Ptr<AddExpr>>(): {
-            auto val = expr.get<Ptr<AddExpr>>();
-            print("AdditionExpr{}");
+        case Expr::which<Ptr<BinaryExpr>>(): {
+            auto val = expr.get<Ptr<BinaryExpr>>();
+            print("BinaryExpr{}");
+
+            static const char* names[] = { 
+                "Add", "Subtract", "Multiply", 
+                "Divide", "Exponent", "GreaterThan", 
+                "LessThan", "GreaterThanOrEq", 
+                "LessThanOrEq", "Equal", "NotEqual"
+            };
+
+            printf("Operator: %s\n", names[(int) val->op]);
             printExpr(val->left, indent + 1);
             printExpr(val->right, indent + 1);
+            break;
+        }
+
+        case Expr::which<Ptr<UnaryExpr>>(): {
+            auto val = expr.get<Ptr<UnaryExpr>>();
+            print("BinaryExpr{}");
+
+            static const char* names[] = { 
+                "Negative", "Negate",
+            };
+
+            printf("Operator: %s\n", names[(int) val->op]);
+            printExpr(val->expr, indent + 1);
             break;
         }
         
