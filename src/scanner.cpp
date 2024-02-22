@@ -66,7 +66,6 @@ char Scanner::isAtEnd() {
 
 bool Scanner::match(char expected) {
     if (isAtEnd()) return false;
-
     if (*current != expected) return false;
 
     current++;

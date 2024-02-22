@@ -34,7 +34,8 @@ using Expr = Variant<
     StrLiteral,
     NoneLiteral,
     Identifier,
-    Ptr<struct BinaryExpr>
+    Ptr<struct BinaryExpr>,
+    Ptr<struct UnaryExpr>
 >;
 
 using Stmt = Variant<
@@ -43,16 +44,32 @@ using Stmt = Variant<
 
 struct BinaryExpr {
     enum Operation {
-        Addition,
-        Subtraction,
-        Multiplication,
-        Division,
-        Exponentiation
+        Add,
+        Subtract,
+        Multiply,
+        Divide,
+        Exponent,
+        GreaterThan,
+        LessThan,
+        GreaterThanOrEq,
+        LessThanOrEq,
+        Equal,
+        NotEqual
     };
 
-    Operation operator;
+    Operation op;
     Expr left;
     Expr right;
+};
+
+struct UnaryExpr {
+    enum Operation {
+        Negative,
+        Negate
+    };
+
+    Operation op;
+    Expr expr;
 };
 
 // Statements

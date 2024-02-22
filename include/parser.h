@@ -37,6 +37,9 @@ private:
     bool check(TokenType type);
     bool match(TokenType type);
 
+    template<typename... Args>
+    bool match(TokenType type, Args... args);
+
     void errorAt(Token& token, std::string msg);
 
     bool hadUnhandledError();
@@ -44,25 +47,32 @@ private:
 
     ParseRule getRule(TokenType type);
 
-    Expr number(bool isLvalue);
-    Expr identifier(bool isLvalue);
-    Expr string(bool isLvalue);
-    Expr literal(bool isLvalue);
-    Expr grouping(bool isLvalue);
-    Expr unary(bool isLvalue);
-    Expr binary(bool isLvalue);
-    Expr parsePrecedence(Precedence precedence);
-    Expr expression();
+    Expr expr();
+    Expr equality();
+    Expr comparison();
+    Expr term();
+    Expr factor();
+    Expr unary();
+    Expr primary();
+    // Expr literal();
+    // Expr number(bool isLvalue);
+    // Expr identifier(bool isLvalue);
+    // Expr string(bool isLvalue);
+    // Expr literal(bool isLvalue);
+    // Expr grouping(bool isLvalue);
+    // Expr unary(bool isLvalue);
+    // Expr binary(bool isLvalue);
+    // Expr parsePrecedence(Precedence precedence);
 
-    Stmt expressionStatement();
-    Stmt printStatement();
-    Stmt returnStatement();
-    Stmt ifStatement();
-    Stmt whileLoop();
-    Stmt forLoop();
-    Stmt varDeclaration(); 
-    Stmt funcDeclaration();
-    Stmt classDeclaration();
+    Stmt exprStmt();
+    // Stmt printStatement();
+    // Stmt returnStatement();
+    // Stmt ifStatement();
+    // Stmt whileLoop();
+    // Stmt forLoop();
+    // Stmt varDeclaration(); 
+    // Stmt funcDeclaration();
+    // Stmt classDeclaration();
     Stmt statement();
     
 private:

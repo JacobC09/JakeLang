@@ -41,6 +41,19 @@ bool Parser::check(TokenType type) {
     return cur.type == type;
 }
 
+bool Parser::match(TokenType type) {
+    if (isFinished()) return false;
+    if (check(type)) return false;
+
+    advance();
+    return true; 
+}
+
+template<typename... Args>
+bool Parser::match(TokenType type, Args... args) {
+    return match(type) || match(args...);
+}
+
 void Parser::errorAt(Token& token, std::string msg) {
     hadError = true;
 
@@ -52,113 +65,118 @@ bool Parser::isFinished() {
     return check(TokenType::EndOfFile) || hadError;
 }
 
-ParseRule Parser::getRule(TokenType type) {
-    switch (type) {
-        case TokenType::Number: return ParseRule {&Parser::number, NULL, Precedence::None};
-        case TokenType::Identifier: return ParseRule {&Parser::identifier, NULL, Precedence::None};
-        case TokenType::String: return ParseRule {&Parser::string, NULL, Precedence::None};
-        case TokenType::True: return ParseRule {&Parser::literal, NULL, Precedence::None};
-        case TokenType::False: return ParseRule {&Parser::literal, NULL, Precedence::None};
-        case TokenType::None: return ParseRule {&Parser::literal, NULL, Precedence::None};
-        case TokenType::Bang: return ParseRule {&Parser::unary, NULL, Precedence::None};
-        case TokenType::Minus: return ParseRule {&Parser::unary, &Parser::binary, Precedence::Term};
-        case TokenType::Plus: return ParseRule {NULL, &Parser::binary, Precedence::Term};
-        case TokenType::Asterisk: return ParseRule {NULL, &Parser::binary, Precedence::Factor};
-        case TokenType::Slash: return ParseRule {NULL, &Parser::binary, Precedence::Factor};
+Expr Parser::expr() {
+    equality();
+}
 
-        case TokenType::EqualEqual:
-        case TokenType::BangEqual: 
-            return ParseRule {NULL, &Parser::binary, Precedence::Equality};
+Expr Parser::equality() {
+    Expr expr = comparison();
 
-        case TokenType::Greater:
-        case TokenType::Less:
-        case TokenType::GreaterEqual:
-        case TokenType::LessEqual: 
-            return ParseRule {NULL, &Parser::binary, Precedence::Comparison};
-
-        default:
-            return ParseRule {NULL, NULL, Precedence::None};
+    while (match(TokenType::EqualEqual, TokenType::BangEqual)) {
+        BinaryExpr::Operation op;
+        switch (prev.type) {
+            default: break;
+        }
+        
+        expr = BinaryExpr {op, expr, comparison()};
     }
 
-}
-
-Expr Parser::number(bool isLvalue) {
-    if (prev.value.front() == '.')
-        return NumLiteral {std::stod("0." + std::string(prev.value))};
-
-    return NumLiteral {std::stod(std::string(prev.value))};
-}
-
-Expr Parser::identifier(bool isLvalue) {
-    return Identifier {std::string(prev.value)};
-}
-
-Expr Parser::string(bool isLvalue) {
-
-    /* Todo: Add formated strings */
-
-    return StrLiteral {std::string(prev.value.data() + 1, prev.value.size() - 2)};
-}
-
-Expr Parser::literal(bool isLvalue) {
-    switch (prev.type) {
-        case TokenType::True:
-            return BoolLiteral {true};
-        case TokenType::False:
-            return BoolLiteral {false};
-        case TokenType::None:
-            return NoneLiteral {};
-        default: 
-            return Empty {};
-    }
-}
-
-Expr Parser::grouping(bool isLvalue) {
-    advance();
-    Expr expr = expression();
-    consume(TokenType::RightParen, "Expected closing parenthesis: ')'");
     return expr;
 }
 
-Expr Parser::unary(bool isLvalue) {
-    
-}
+Expr Parser::comparison() {
+    Expr expr = term();
 
-Expr Parser::binary(bool isLvalue) {
-
-}
-
-Expr Parser::parsePrecedence(Precedence precedence) {
-    advance();
-
-    ParseRule rule = getRule(prev.type);
-    if (rule.prefix == NULL) {
-        errorAt(prev, "Expected an expression");
+    while (match(TokenType::Greater, TokenType::Less, TokenType::LessEqual, TokenType::GreaterEqual)) {
+        BinaryExpr::Operation op;
+        switch (prev.type) {
+            case TokenType::Greater:
+                op = BinaryExpr::Operation::GreaterThan;
+                break;
+            case TokenType::Less:
+                op = BinaryExpr::Operation::LessThan;
+                break;
+            case TokenType::LessEqual:
+                op = BinaryExpr::Operation::LessThanOrEq;
+                break;
+            case TokenType::GreaterEqual:
+                op = BinaryExpr::Operation::GreaterThanOrEq;
+                break;
+            default: break;
+        }
+        
+        expr = BinaryExpr {op, expr, term()};
     }
 
-    bool isLvalue = precedence <= Precedence::Assignment;
-    (this->*rule.prefix)(isLvalue);
+    return expr;
+}
 
-    while ((rule = getRule(cur.type)).precedence >= precedence) {
-        advance();
-        (this->*rule.infix)(isLvalue);
+Expr Parser::term() {
+    Expr expr = factor();
+
+    while (match(TokenType::Plus, TokenType::Minus)) {
+        BinaryExpr::Operation op;
+        switch (prev.type) {
+            case TokenType::Plus:
+                op = BinaryExpr::Operation::Add;
+                break;
+            case TokenType::Minus:
+                op = BinaryExpr::Operation::Subtract;
+                break;
+            default: break;
+        }
+        
+        expr = BinaryExpr {op, expr, factor()};
     }
 
-    bool isAssignment = check(TokenType::Equal) || check(TokenType::PlusEqual) || check(TokenType::MinusEqual) ||
-        check(TokenType::AsteriskEqual) || check(TokenType::SlashEqual);
+    return expr;
+}
 
-    if (isLvalue && isAssignment) {
-        errorAt(prev, "Invalid assignment target");
-        advance();
+Expr Parser::factor() {
+    Expr expr = unary();
+
+    while (match(TokenType::Asterisk, TokenType::Slash)) {
+        BinaryExpr::Operation op;
+        switch (prev.type) {
+            case TokenType::Asterisk:
+                op = BinaryExpr::Operation::Multiply;
+                break;
+            case TokenType::Slash:
+                op = BinaryExpr::Operation::Divide;
+                break;
+            default: break;
+        }
+        
+        expr = BinaryExpr {op, expr, unary()};
+    }
+
+    return expr;
+}
+
+Expr Parser::unary() {
+    if (match(TokenType::Minus) || match(TokenType::Plus)) {
+        bool isNegative = true;
+        while (match(TokenType::Minus) || match(TokenType::Plus)) {
+            if (prev.type == TokenType::Minus)
+                isNegative = !isNegative;
+        }
+        if (isNegative)
+            return UnaryExpr {UnaryExpr::Operation::Negative, primary()};
+    } else if (match(TokenType::Bang)) {
+        bool isNegate = true;
+        while (match(TokenType::Minus)) isNegate = ~isNegate;
+
+        if (isNegate)
+            return UnaryExpr {UnaryExpr::Operation::Negate, primary()};
     }
 }
 
-Expr Parser::expression() {
-    return parsePrecedence(Precedence::Assignment);
+Expr Parser::primary() {
 }
 
-Stmt Parser::expressionStatement() {
-    Stmt stmt = ExprStmt {expression()};
+
+Stmt Parser::exprStmt() {
+    Stmt stmt = ExprStmt {expr()};
     consume(TokenType::Semicolon, "Expected ';' after expression");
     return stmt;
 }
@@ -166,6 +184,6 @@ Stmt Parser::expressionStatement() {
 Stmt Parser::statement() {
     switch (cur.type) {
         default:
-            return expressionStatement();
+            return exprStmt();
     }
 }
