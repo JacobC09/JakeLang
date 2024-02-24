@@ -8,7 +8,6 @@ set(CMAKE_BUILD_TYPE Debug)
 add_executable(jake-lang 
     "src/main.cpp"
     "src/debug.cpp"
-    "src/timer.cpp"
     "src/environment.cpp"
     "src/scanner.cpp"
     "src/parser.cpp"
@@ -25,19 +24,15 @@ else()
     target_compile_options(jake-lang PRIVATE -std=c++17 -Wall)
 endif()
 
-# ---------- Emscripten ---------- #
+# ---------- Tests ---------- #
 
-# Set the source directory
 set(TEST_DIR test)
 
-add_custom_target(
-    copy_tests
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/${TEST_DIR}
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TEST_DIR}
+add_custom_target(copy_assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/${TEST_DIR} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TEST_DIR}
 )
 
-add_dependencies(jake-lang copy_tests)
+add_dependencies(jake-lang copy_assets)
 
 # ---------- Emscripten ---------- #
 

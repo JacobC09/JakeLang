@@ -25,6 +25,8 @@ void runFile(std::string path) {
     std::string source = openFile(path);
     Timer<std::chrono::microseconds> clock;
 
+    print(source);
+
     clock.tick();
 
     Environment env;

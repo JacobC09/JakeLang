@@ -2,11 +2,10 @@
 #include <vector>
 #include "variant.h"
 
-// Empty
-
 struct Empty {};
 
 // Literals
+
 struct NumLiteral {
     double value;
 };
@@ -25,6 +24,12 @@ struct StrLiteral {
 
 struct NoneLiteral {};
 
+// Literal Statments
+
+struct BreakStmt {};
+
+struct ContinueStmt {};
+
 // Variants
 
 using Expr = Variant<
@@ -34,13 +39,30 @@ using Expr = Variant<
     StrLiteral,
     NoneLiteral,
     Identifier,
+    Ptr<struct AssignmentExpr>,
     Ptr<struct BinaryExpr>,
-    Ptr<struct UnaryExpr>
+    Ptr<struct UnaryExpr>,
+    Ptr<struct BlockExpr>
 >;
 
 using Stmt = Variant<
-    Ptr<struct ExprStmt>
+    Empty,
+    BreakStmt,
+    ContinueStmt,
+    Ptr<struct ExprStmt>,
+    Ptr<struct PrintStmt>,
+    Ptr<struct IfStmt>,
+    Ptr<struct LoopBlock>,
+    Ptr<struct WhileLoop>,
+    Ptr<struct ForLoop>,
+    Ptr<struct ReturnStmt>,
+    Ptr<struct FuncDeclaration>
 >;
+
+struct AssignmentExpr {
+    Expr target;
+    Expr expr;
+};
 
 struct BinaryExpr {
     enum Operation {
@@ -72,10 +94,51 @@ struct UnaryExpr {
     Expr expr;
 };
 
+struct BlockExpr {
+    std::vector<Stmt> body;
+};
+
 // Statements
 
 struct ExprStmt {
     Expr expr;
+};
+
+struct PrintStmt {
+    Expr expr;
+};
+
+struct IfStmt {
+    Expr condition;
+    std::vector<Stmt> body;
+    std::vector<Stmt> orelse;
+};
+
+struct LoopBlock {
+    std::vector<Stmt> body;
+};
+
+struct WhileLoop {
+    Expr condition;
+    std::vector<Stmt> body;
+};
+
+struct ForLoop {
+    Identifier target;
+    Expr iterator;
+    std::vector<Stmt> body;
+};
+
+struct ReturnStmt {
+    std::vector<Expr> values;
+};
+
+// Declarations
+
+struct FuncDeclaration {
+    Identifier name;
+    std::vector<Expr> args;
+    std::vector<Stmt> body;
 };
 
 // Ast

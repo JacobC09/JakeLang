@@ -3,7 +3,7 @@
 #include <vector>
 
 inline void print() {
-    std::cout << std::endl;
+    std::cout << "\n";
 }
 
 template<typename Target>

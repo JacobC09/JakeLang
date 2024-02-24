@@ -1,8 +1,9 @@
 #include "parser.h"
 #include "util.h"
+#include "debug.h"
+#include "print.h"
 
-Parser::Parser(std::string source) {
-    scanner = Scanner(source);
+Parser::Parser(std::string& source) : scanner(source) {
     hadError = false;
 }
 
@@ -14,7 +15,7 @@ Ast Parser::parse() {
         ast.body.push_back(statement());
     }
 
-    return std::move(ast);  
+    return ast;  
 }
 
 void Parser::advance() {
@@ -43,7 +44,7 @@ bool Parser::check(TokenType type) {
 
 bool Parser::match(TokenType type) {
     if (isFinished()) return false;
-    if (check(type)) return false;
+    if (!check(type)) return false;
 
     advance();
     return true; 
@@ -55,18 +56,63 @@ bool Parser::match(TokenType type, Args... args) {
 }
 
 void Parser::errorAt(Token& token, std::string msg) {
+    if (hadError) return;
+    
     hadError = true;
-
-    printf("Error at line %d:", token.line);
-    printf("\t%s", msg.c_str());
+    printf("Error at line %d\n", token.line);
+    printf("\t%s\n", msg.c_str());
 }
 
 bool Parser::isFinished() {
     return check(TokenType::EndOfFile) || hadError;
 }
 
+bool Parser::failedParse() {
+    return hadError;
+}
+
 Expr Parser::expression() {
-    return equality();
+    return assignment();
+}
+
+Expr Parser::assignment() {
+    Expr target = equality();
+
+    while (match(TokenType::Equal, TokenType::PlusEqual, TokenType::MinusEqual, 
+                 TokenType::SlashEqual, TokenType::AsteriskEqual, TokenType::CarretEqual)) 
+    {
+
+        if (prev.type == TokenType::Equal) {
+            target = AssignmentExpr {target, equality()};
+            continue;
+        }
+
+        BinaryExpr::Operation op;
+
+        switch (prev.type) {
+            case TokenType::PlusEqual:
+                op = BinaryExpr::Operation::Add;
+                break;
+            case TokenType::MinusEqual:
+                op = BinaryExpr::Operation::Subtract;
+                break;
+            case TokenType::AsteriskEqual:
+                op = BinaryExpr::Operation::Multiply;
+                break;
+            case TokenType::SlashEqual:
+                op = BinaryExpr::Operation::Divide;
+                break;
+            case TokenType::Carret:
+                op = BinaryExpr::Operation::Exponent;
+                break;
+
+            default: break;
+        }
+
+        target = BinaryExpr {op, target, equality()};
+    }
+
+    return target;
 }
 
 Expr Parser::equality() {
@@ -139,7 +185,7 @@ Expr Parser::term() {
 }
 
 Expr Parser::factor() {
-    Expr expr = unary();
+    Expr expr = exponent();
 
     while (match(TokenType::Asterisk, TokenType::Slash)) {
         BinaryExpr::Operation op;
@@ -153,7 +199,17 @@ Expr Parser::factor() {
             default: break;
         }
         
-        expr = BinaryExpr {op, expr, unary()};
+        expr = BinaryExpr {op, expr, exponent()};
+    }
+
+    return expr;
+}
+
+Expr Parser::exponent() {
+    Expr expr = unary();
+
+    while (match(TokenType::Carret)) {
+        expr = BinaryExpr {BinaryExpr::Operation::Exponent, expr, unary()};
     }
 
     return expr;
@@ -180,11 +236,15 @@ Expr Parser::unary() {
 }
 
 Expr Parser::primary() {
-    switch (cur.type) {
+    advance();
+
+    switch (prev.type) {
         case TokenType::True:
             return BoolLiteral {true};
         case TokenType::False:
             return BoolLiteral {false};
+        case TokenType::None:
+            return NoneLiteral {};
 
         case TokenType::Number:
             return number();
@@ -197,9 +257,12 @@ Expr Parser::primary() {
 
         case TokenType::LeftParen:
             return grouping();
+
+        case TokenType::LeftBrace:
+            return blockExpr();
         
         default:
-            errorAt(cur, "Expected an expression");
+            errorAt(prev, "Expected an expression");
             return Empty {};
     }
 }
@@ -219,11 +282,80 @@ Expr Parser::identifer() {
     return Identifier {std::string(prev.value)};
 }
 
+Expr Parser::blockExpr() {
+    return BlockExpr {block()};
+}
+
+std::vector<Expr> Parser::exprList() {
+    std::vector<Expr> values;
+
+    while (!isFinished()) {
+        values.push_back(expression());
+
+        if (!match(TokenType::Comma))
+            break;
+    }
+
+    return values;
+}
+
+std::vector<Stmt> Parser::block() {
+    std::vector<Stmt> body;
+
+    while (!check(TokenType::RightBrace) && !isFinished()) {
+        body.push_back(statement());
+    }
+
+    consume(TokenType::RightBrace, "Expected '}' after block");
+    return body;  
+}
+
 Expr Parser::grouping() {
-    advance();
     Expr expr = expression();
-    consume(TokenType::LeftParen, "Expected ')' after grouping");
+    consume(TokenType::RightParen, "Expected ')' after grouping");
     return expr;
+}
+
+Stmt Parser::statement() {
+    switch (cur.type) {
+        case TokenType::Print:
+            return printStmt();
+        
+        case TokenType::If:
+            return ifStmt();
+
+        case TokenType::Loop:
+            return loopBlock();
+        
+        case TokenType::While:
+            return whileLoop();
+
+        case TokenType::For:
+            return forLoop();
+
+        case TokenType::Return:
+            return returnStmt();
+
+        case TokenType::Func:
+            return funcDeclaration();
+
+        case TokenType::Break:
+            advance();
+            consume(TokenType::Semicolon, "Expected ';' after break");
+            return BreakStmt {};
+
+        case TokenType::Continue:
+            advance();
+            consume(TokenType::Semicolon, "Expected ';' after continue");
+            return ContinueStmt {};
+
+        case TokenType::EndOfFile:
+        case TokenType::Error:
+            return Empty {};
+
+        default:
+            return exprStmt();
+    }
 }
 
 Stmt Parser::exprStmt() {
@@ -232,11 +364,76 @@ Stmt Parser::exprStmt() {
     return stmt;
 }
 
-Stmt Parser::statement() {
-    return exprStmt();
+Stmt Parser::printStmt() {
+    advance();
+    Expr expr = expression();
+    consume(TokenType::Semicolon, "Expected ';' after print statement");
+    return PrintStmt {expr};
+}
 
-    // switch (cur.type) {
-    //     default:
-    //         return exprStmt();
-    // }
+Stmt Parser::ifStmt() {
+    advance();
+    Expr condition = expression();
+    consume(TokenType::LeftBrace, "Expected '{' after if condition");
+    std::vector<Stmt> body = block();
+    std::vector<Stmt> orelse;
+
+    if (match(TokenType::Else)) {
+        if (check(TokenType::If)) {
+            orelse.push_back(ifStmt());
+        } else {
+            consume(TokenType::LeftBrace, "Expected '{' after else clause");
+            orelse = block();
+        }
+    }
+
+    return IfStmt {condition, body, orelse};
+}
+
+Stmt Parser::loopBlock() {
+    advance();
+    consume(TokenType::LeftBrace, "Expected '{' after loop");
+    return LoopBlock {block()};
+}
+
+Stmt Parser::whileLoop() {
+    advance();
+    Expr condition = expression();
+    consume(TokenType::LeftBrace, "Expected '{' after while condition");
+    return WhileLoop {condition, block()};
+}
+
+Stmt Parser::forLoop() {
+    advance();
+    if (!match(TokenType::Identifier)) {
+        errorAt(cur, "For loop target must be an identifier");
+        return Empty {};
+    }
+    Identifier target = identifer().get<Identifier>();
+    
+    consume(TokenType::In, "Expected 'in' after for loop target");
+    Expr iterator = expression();
+    consume(TokenType::LeftBrace, "Expected '{' after for iterator");
+    return ForLoop {target, iterator, block()};
+}
+
+Stmt Parser::returnStmt() {
+    advance();
+    std::vector<Expr> values = exprList();
+    consume(TokenType::Semicolon, "Expected ';' after return statement");
+    return ReturnStmt {values};
+}
+
+Stmt Parser::funcDeclaration() {
+    advance();
+    if (!match(TokenType::Identifier)) {
+        errorAt(cur, "Function name must be an identifier");
+        return Empty {};
+    }
+    Identifier name = identifer().get<Identifier>();
+    consume(TokenType::LeftParen, "Expected '(' after function name");
+    std::vector<Expr> args = exprList();
+    consume(TokenType::RightParen, "Expected ')' after function arguments");
+    consume(TokenType::LeftBrace, "Expected '{' before function body");
+    return FuncDeclaration {name, args, block()};
 }

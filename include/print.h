@@ -2,5 +2,5 @@
 #include "scanner.h"
 #include "ast.h"
 
-void printToken(Token& token);
-void printAst(Ast& ast);
+void printToken(const Token& token);
+void printAst(const Ast& ast);

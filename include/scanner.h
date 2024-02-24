@@ -6,16 +6,21 @@ enum class TokenType {
     LeftParen, RightParen,
     LeftBrace, RightBrace,
     Comma, Dot, Plus, Minus,
-    Slash, Asterisk, Semicolon,
+    Slash, Asterisk, Carret, Semicolon,
 
     // One or Two Char
     Bang, BangEqual,
     Equal, EqualEqual,
     Greater, GreaterEqual,
-    Less, LessEqual, PlusEqual, MinusEqual, SlashEqual, AsteriskEqual,
+    Less, LessEqual, PlusEqual, 
+    MinusEqual, AsteriskEqual, SlashEqual,
+    CarretEqual,
 
-    // literals
+    // Literals
     Identifier, String, Number, True, False, None,
+
+    // Keywords
+    Print, If, Else, Loop, While, For, In, Continue, Break, Return, Func,
 
     Error, EndOfFile
 };
@@ -30,7 +35,6 @@ struct Token {
 
 class Scanner {
 public:
-    Scanner() = default;
     Scanner(std::string src);
 
     Token nextToken();
@@ -49,9 +53,7 @@ private:
     Token scanIdentifer();
     Token makeToken(TokenType type);
 
-private:
     int line;
-    char* lineStart;
     char* start;
     char* current;
     std::string source;

@@ -2,37 +2,16 @@
 #include "ast.h"
 #include "scanner.h"
 
-class Parser;
-
-enum class Precedence {
-    None,
-    Assignment,     // =
-    Boolean,        // and
-    Equality,       // == !=
-    Comparison,     // < > <= >=
-    Term,           // + -
-    Factor,         // * /
-    Unary,          // ! -
-    Call,           // . ()
-    Primary
-};
-
-using ParseFunc = Expr (Parser::*)(bool);
-
-struct ParseRule {
-    ParseFunc prefix;
-    ParseFunc infix;
-    Precedence precedence;
-};
-
 class Parser {
 public:
-    Parser(std::string source);
+    Parser(std::string& source);
 
     Ast parse();
+    bool failedParse();
 
 private:
     void advance();
+    void errorAt(Token& token, std::string msg);
     void consume(TokenType type, std::string msg);
     bool check(TokenType type);
     bool match(TokenType type);
@@ -40,18 +19,15 @@ private:
     template<typename... Args>
     bool match(TokenType type, Args... args);
 
-    void errorAt(Token& token, std::string msg);
-
-    bool hadUnhandledError();
     bool isFinished();
 
-    ParseRule getRule(TokenType type);
-
     Expr expression();
+    Expr assignment();
     Expr equality();
     Expr comparison();
     Expr term();
     Expr factor();
+    Expr exponent();
     Expr unary();
     Expr primary();
 
@@ -59,26 +35,21 @@ private:
     Expr string();
     Expr identifer();
     Expr grouping();
-    // Expr literal();
-    // Expr number(bool isLvalue);
-    // Expr identifier(bool isLvalue);
-    // Expr string(bool isLvalue);
-    // Expr literal(bool isLvalue);
-    // Expr grouping(bool isLvalue);
-    // Expr unary(bool isLvalue);
-    // Expr binary(bool isLvalue);
-    // Expr parsePrecedence(Precedence precedence);
+    Expr blockExpr();
+    
+    std::vector<Expr> exprList();
+    std::vector<Stmt> block();
 
-    Stmt exprStmt();
-    // Stmt printStatement();
-    // Stmt returnStatement();
-    // Stmt ifStatement();
-    // Stmt whileLoop();
-    // Stmt forLoop();
-    // Stmt varDeclaration(); 
-    // Stmt funcDeclaration();
-    // Stmt classDeclaration();
     Stmt statement();
+    Stmt exprStmt();
+    Stmt printStmt();
+    Stmt ifStmt();
+    Stmt loopBlock();
+    Stmt whileLoop();
+    Stmt forLoop();
+    Stmt returnStmt();
+
+    Stmt funcDeclaration();
     
 private:
     bool hadError;

@@ -1,9 +1,10 @@
 #include "scanner.h"
+#include "debug.h"
 
-Scanner::Scanner(std::string src) : source(src) {
-    line = 0;
-    start = current = source.data();
-    lineStart = start;
+Scanner::Scanner(std::string src) {
+    source = src;
+    line = 1;
+    current = source.data();
 }
 
 Token Scanner::nextToken() {
@@ -30,6 +31,7 @@ Token Scanner::nextToken() {
         case '-': return makeToken(match('=') ? TokenType::MinusEqual : TokenType::Minus);
         case '/': return makeToken(match('=') ? TokenType::SlashEqual : TokenType::Slash);
         case '*': return makeToken(match('=') ? TokenType::AsteriskEqual : TokenType::Asterisk);
+        case '^': return makeToken(match('=') ? TokenType::CarretEqual : TokenType::Carret);
         case '!': return makeToken(match('=') ? TokenType::BangEqual : TokenType::Bang);
         case '=': return makeToken(match('=') ? TokenType::EqualEqual : TokenType::Equal);
         case '>': return makeToken(match('=') ? TokenType::GreaterEqual : TokenType::Greater);
@@ -123,7 +125,6 @@ Token Scanner::scanString() {
 
         advance();
     }
-        
 
     advance();
     return makeToken(TokenType::String);
@@ -131,5 +132,32 @@ Token Scanner::scanString() {
 
 Token Scanner::scanIdentifer() {
     while (isalpha(peek()) || isdigit(peek()) || peek() == '_') advance();
-    return makeToken(TokenType::Identifier);
+
+    Token token = makeToken(TokenType::Identifier);
+
+    if (token.value.compare("print") == 0) {
+        token.type = TokenType::Print;
+    } else if (token.value.compare("if") == 0) {
+        token.type = TokenType::If;
+    } else if (token.value.compare("else") == 0) {
+        token.type = TokenType::Else;
+    } else if (token.value.compare("loop") == 0) {
+        token.type = TokenType::Loop;
+    } else if (token.value.compare("while") == 0) {
+        token.type = TokenType::While;
+    } else if (token.value.compare("for") == 0) {
+        token.type = TokenType::For;
+    } else if (token.value.compare("in") == 0) {
+        token.type = TokenType::In;
+    } else if (token.value.compare("continue") == 0) {
+        token.type = TokenType::Continue;
+    } else if (token.value.compare("break") == 0) {
+        token.type = TokenType::Break;
+    } else if (token.value.compare("return") == 0) {
+        token.type = TokenType::Return;
+    } else if (token.value.compare("func") == 0) {
+        token.type = TokenType::Func;
+    }
+
+    return token;
 }
