@@ -10,9 +10,10 @@ struct Result {
     int exitCode;
 };
 
-class Environment {
+
+class State {
 public:
-    Environment();
+    State();
 
     Result run(std::string source);
 };

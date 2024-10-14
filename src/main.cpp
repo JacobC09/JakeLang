@@ -3,7 +3,7 @@
 #include <sstream>
 #include "debug.h"
 #include "timer.h"
-#include "environment.h"
+#include "state.h"
 
 std::string openFile(std::string path) {
     std::fstream file;
@@ -25,12 +25,15 @@ void runFile(std::string path) {
     std::string source = openFile(path);
     Timer<std::chrono::microseconds> clock;
 
+    print(">=== Source ===<");
     print(source);
+    print(">==============<");
+
 
     clock.tick();
 
-    Environment env;
-    env.run(source);
+    State state;
+    state.run(source);
 
     clock.tock();
 

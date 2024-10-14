@@ -8,10 +8,12 @@ set(CMAKE_BUILD_TYPE Debug)
 add_executable(jake-lang 
     "src/main.cpp"
     "src/debug.cpp"
-    "src/environment.cpp"
+    "src/state.cpp"
     "src/scanner.cpp"
     "src/parser.cpp"
+    "src/util.cpp"
     "src/print.cpp"
+    "src/compiler.cpp"
 )
 
 # ---------- Linker Config ---------- #
@@ -28,8 +30,14 @@ endif()
 
 set(TEST_DIR test)
 
+if (MSVC)
+    set(TEST_DEST Debug/${TEST_DIR})
+else()
+    set(TEST_DEST ${TEST_DIR})
+endif()
+
 add_custom_target(copy_assets
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/${TEST_DIR} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TEST_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/${TEST_DIR} ${CMAKE_CURRENT_BINARY_DIR}/${TEST_DEST}
 )
 
 add_dependencies(jake-lang copy_assets)

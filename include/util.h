@@ -1,52 +1,16 @@
 #pragma once
-#include <stdarg.h>
-#include <string>
+#include <map>
+#include "debug.h"
 
-std::string formatStr(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
+typedef float    f32;
+typedef double   f64;
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef int8_t   i8;
+typedef int16_t  i16;
+typedef int32_t  i32;
+typedef int64_t  i64;
 
-    std::string result;
-
-    while (*format) {
-        if (*format == '%') {
-            ++format;
-
-            switch (*format) {
-                case 'd': {
-                    int i = va_arg(args, int);
-                    result += std::to_string(i);
-                    break;
-                }
-
-                case 'f': {
-                    double d = va_arg(args, double);
-                    result += std::to_string(d);
-                    break;
-                }
-
-                case 's': {
-                    const char* str = va_arg(args, const char*);
-                    result += str;
-                    break;
-                }
-
-                case 'c': {
-                    char c = static_cast<char>(va_arg(args, int));
-                    result.push_back(c);
-                    break;
-                }
-
-                default: break;
-            }
-
-        } else {
-            result.push_back(*format);
-        }
-        ++format;
-    }
-
-    va_end(args);
-
-    return result;
-}
+std::string formatStr(const char* format, ...);

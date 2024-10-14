@@ -260,8 +260,198 @@ void printStmt(const Stmt& stmt, int indent) {
 }
 
 void printAst(const Ast& ast) {
+    print(">=== Ast ===<");
     print("Ast{}");
     for (auto& stmt : ast.body) {
         printStmt(stmt, 1);
     }
+    print(">===========<");
+}
+
+int simpleInstruction(const char* name, int index) {
+    printf("%s\n", name);
+    return index + 1;
+}
+
+int constantInstruction(const char* name, const Chunk& chunk, int index, bool isDouble=false, bool isName=false) {
+    index++;
+    int constant;
+    
+    if (isDouble) {
+        constant = chunk.bytecode[index] << 8 | chunk.bytecode[index + 1];
+        index += 2;
+    } else {
+        constant = chunk.bytecode[index];
+        index += 1;
+    }
+
+    if (isName) {
+        printf("%-16s %s (%d)\n", name, chunk.constants.names[constant].c_str(), constant);
+    } else {
+        double val = chunk.constants.numbers[constant];
+        if (val == (int) val) {
+            printf("%-16s %d (%d)\n", name, (int) val, constant);
+        } else {
+            printf("%-16s %lf (%d)\n", name, val, constant);
+        }
+    }
+
+    return index;
+
+}
+
+int disassembleInstruction(const Chunk& chunk, int index) {
+    printf("%04d ", index);
+    
+    switch (chunk.bytecode[index]) {
+        case OpPop:
+            index = simpleInstruction("Pop", index);
+            break;
+        case OpReturn:
+            index = simpleInstruction("Return", index);
+            break;
+        case OpConstantNumber:
+            index = constantInstruction("Number Constant", chunk, index, false, false);
+            break;
+        case OpConstantName:
+            index = constantInstruction("Name Constant", chunk, index, false, true);
+            break;
+        case OpConstantNumberDouble:
+            index = constantInstruction("(d) Number Constant", chunk, index, true, false);
+            break;
+        case OpConstantNameDouble:
+            index = constantInstruction("(d) Name Constant", chunk, index, true, true);
+            break;
+        case OpTrue:
+            index = simpleInstruction("True", index);
+            break;
+        case OpFalse:
+            index = simpleInstruction("False", index);
+            break;
+        case OpNone:
+            index = simpleInstruction("None", index);
+            break;
+        case OpAdd:
+            index = simpleInstruction("Add", index);
+            break;
+        case OpSubtract:
+            index = simpleInstruction("Subtract", index);
+            break;
+        case OpMultiply:
+            index = simpleInstruction("Multiply", index);
+            break;
+        case OpDivide:
+            index = simpleInstruction("Divide", index);
+            break;
+        case OpExponent:
+            index = simpleInstruction("Exponent", index);
+            break;
+        case OpEqual:
+            index = simpleInstruction("Equal", index);
+            break;
+        case OpGreater:
+            index = simpleInstruction("Greater", index);
+            break;
+        case OpLess:
+            index = simpleInstruction("Less", index);
+            break;
+        case OpGreaterThanOrEq:
+            index = simpleInstruction("GreaterThanOrEq", index);
+            break;
+        case OpLessThanOrEq:
+            index = simpleInstruction("LessThanOrEq", index);
+            break;
+        case OpNot:
+            index = simpleInstruction("Not", index);
+            break;
+        case OpNegate:
+            index = simpleInstruction("Negate", index);
+            break;
+        case OpPrint:
+            index = simpleInstruction("Print", index);
+            break;
+        case OpDefineGlobal:
+            index = simpleInstruction("DefineGlobal", index);
+            break;
+        case OpGetGlobal:
+            index = simpleInstruction("GetGlobal", index);
+            break;
+        case OpSetGlobal:
+            index = simpleInstruction("SetGlobal", index);
+            break;
+        case OpGetLocal:
+            index = simpleInstruction("GetLocal", index);
+            break;
+        case OpSetLocal:
+            index = simpleInstruction("SetLocal", index);
+            break;
+        case OpGetUpValue:
+            index = simpleInstruction("GetUpValue", index);
+            break;
+        case OpSetUpValue:
+            index = simpleInstruction("SetUpValue", index);
+            break;
+        case OpCloseUpValue:
+            index = simpleInstruction("CloseUpValue", index);
+            break;
+        case OpJump:
+            index = simpleInstruction("Jump", index);
+            break;
+        case OpJumpBack:
+            index = simpleInstruction("JumpBack", index);
+            break;
+        case OpJumpIfTrue:
+            index = simpleInstruction("JumpIfTrue", index);
+            break;
+        case OpJumpIfFalse:
+            index = simpleInstruction("JumpIfFalse", index);
+            break;
+        case OpCall:
+            index = simpleInstruction("Call", index);
+            break;
+        case OpClosure:
+            index = simpleInstruction("Closure", index);
+            break;
+        case OpClass:
+            index = simpleInstruction("Class", index);
+            break;
+        case OpGetProperty:
+            index = simpleInstruction("GetProperty", index);
+            break;
+        case OpSetProperty:
+            index = simpleInstruction("SetProperty", index);
+            break;
+        case OpMethod:
+            index = simpleInstruction("Method", index);
+            break;
+        case OpInvoke:
+            index = simpleInstruction("Invoke", index);
+            break;
+        case OpInherit:
+            index = simpleInstruction("Inherit", index);
+            break;
+        case OpGetSuper:
+            index = simpleInstruction("OpGetSuper", index);
+            break;
+
+        default:
+            print("Unknown Instruction");
+            index++;
+            break;
+    }
+
+    return index;
+}
+
+void printChunk(const Chunk& chunk, std::string name) {
+    if (!name.size()) name = "Chunk";
+
+    printf(">=== %s ===<\n", name.c_str());
+    
+    for (int index = 0; index < (signed) chunk.bytecode.size();) {
+        index = disassembleInstruction(chunk, index);
+    }
+
+    printf(">===%s===<\n", std::string(name.size() + 2, '=').c_str());
+
 }

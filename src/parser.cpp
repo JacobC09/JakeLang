@@ -67,7 +67,7 @@ bool Parser::isFinished() {
     return check(TokenType::EndOfFile) || hadError;
 }
 
-bool Parser::failedParse() {
+bool Parser::failed() {
     return hadError;
 }
 
@@ -282,6 +282,12 @@ Expr Parser::identifer() {
     return Identifier {std::string(prev.value)};
 }
 
+Expr Parser::grouping() {
+    Expr expr = expression();
+    consume(TokenType::RightParen, "Expected ')' after grouping");
+    return expr;
+}
+
 Expr Parser::blockExpr() {
     return BlockExpr {block()};
 }
@@ -308,12 +314,6 @@ std::vector<Stmt> Parser::block() {
 
     consume(TokenType::RightBrace, "Expected '}' after block");
     return body;  
-}
-
-Expr Parser::grouping() {
-    Expr expr = expression();
-    consume(TokenType::RightParen, "Expected ')' after grouping");
-    return expr;
 }
 
 Stmt Parser::statement() {

@@ -1,6 +1,1 @@
-return hi, asdf, awer;
-
-func myFUnction(ad, 5, e, 2) {
-    asdf;
-    return 2;
-}
+1 + 2 - 4 *(6 - 8) * 9;

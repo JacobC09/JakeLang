@@ -7,7 +7,7 @@ public:
     Parser(std::string& source);
 
     Ast parse();
-    bool failedParse();
+    bool failed();
 
 private:
     void advance();
