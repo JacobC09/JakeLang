@@ -61,7 +61,7 @@ using Stmt = Variant<
 >;
 
 struct AssignmentExpr {
-    Expr target;
+    Identifier target;
     Expr expr;
 };
 

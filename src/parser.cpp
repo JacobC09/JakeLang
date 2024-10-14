@@ -25,7 +25,7 @@ void Parser::advance() {
     cur = scanner.nextToken();
 
     if (cur.type == TokenType::Error) {
-        errorAt(cur, formatStr("Invalid Token: %s", std::string(cur.value)));
+        errorAt(cur, formatStr("Invalid Token: %s", std::string(cur.value).c_str()));
     }
 }
 
@@ -81,39 +81,40 @@ Expr Parser::assignment() {
     while (match(TokenType::Equal, TokenType::PlusEqual, TokenType::MinusEqual, 
                  TokenType::SlashEqual, TokenType::AsteriskEqual, TokenType::CarretEqual)) 
     {
+        if (target.which() != Expr::which<Identifier>()) {
+            errorAt(prev, "Assignment target must be an identifier");
+        }
 
-        if (prev.type == TokenType::Equal) {
-            if (!(target.which() == Expr::which<Ptr<AssignmentExpr>>() || target.which() == Expr::which<Identifier>())) {
-                errorAt(prev, "Invalid Assignment Target");
+        Expr right = equality();
+
+        if (prev.type != TokenType::Equal) {
+            BinaryExpr::Operation op;
+
+            switch (prev.type) {
+                case TokenType::PlusEqual:
+                    op = BinaryExpr::Operation::Add;
+                    break;
+                case TokenType::MinusEqual:
+                    op = BinaryExpr::Operation::Subtract;
+                    break;
+                case TokenType::AsteriskEqual:
+                    op = BinaryExpr::Operation::Multiply;
+                    break;
+                case TokenType::SlashEqual:
+                    op = BinaryExpr::Operation::Divide;
+                    break;
+                case TokenType::Carret:
+                    op = BinaryExpr::Operation::Exponent;
+                    break;
+
+                default: break;
             }
 
-            target = AssignmentExpr {target, equality()};
-            continue;
+            right = BinaryExpr {op, target, equality()};
         }
 
-        BinaryExpr::Operation op;
+        target = AssignmentExpr {target.get<Identifier>(), right};
 
-        switch (prev.type) {
-            case TokenType::PlusEqual:
-                op = BinaryExpr::Operation::Add;
-                break;
-            case TokenType::MinusEqual:
-                op = BinaryExpr::Operation::Subtract;
-                break;
-            case TokenType::AsteriskEqual:
-                op = BinaryExpr::Operation::Multiply;
-                break;
-            case TokenType::SlashEqual:
-                op = BinaryExpr::Operation::Divide;
-                break;
-            case TokenType::Carret:
-                op = BinaryExpr::Operation::Exponent;
-                break;
-
-            default: break;
-        }
-
-        target = BinaryExpr {op, target, equality()};
     }
 
     return target;

@@ -23,7 +23,7 @@ target_include_directories(jake-lang PRIVATE "./include/" "./external/variant/in
 if (MSVC)
     target_compile_options(jake-lang PRIVATE /std:c++17 /W3 /wd4244)
 else()
-    target_compile_options(jake-lang PRIVATE -std=c++17 -Wall)
+    target_compile_options(jake-lang PRIVATE -std=c++17 -Wall -Wno-sometimes-uninitialized)
 endif()
 
 # ---------- Tests ---------- #

@@ -305,7 +305,8 @@ int disassembleInstruction(const Chunk& chunk, int index) {
     
     switch (chunk.bytecode[index]) {
         case OpPop:
-            index = simpleInstruction("Pop", index);
+            printf("%-16s %i\n", "Pop", chunk.bytecode[index + 1]);
+            index += 2;
             break;
         case OpReturn:
             index = simpleInstruction("Return", index);

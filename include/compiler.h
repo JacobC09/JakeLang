@@ -44,11 +44,12 @@ public:
 private:
     Chunk* getChunk();
     void error(std::string msg);
-    void emitByte(u8 byte);
     void newChunk();
-    void emitNumberConstant(double value);
-    void emitNameConstant(std::string value);
+    void endChunk();
+    int makeNumberConstant(double value);
+    int makeNameConstant(std::string value);
     void addLocal(std::string name);
+    int findLocal(std::string name);
     void beginScope();
     void endScope();
     void body(std::vector<Stmt>& stmts);
@@ -56,8 +57,14 @@ private:
     void assignment(Ptr<AssignmentExpr>& expr);
     void varDeclaration(Ptr<VarDeclaration>& declaration);
 
-    template<typename ... Bytes>
-    void emitBytes(u8 byte, Bytes ... rest);
+    template<typename ByteSize>
+    void emitByte(ByteSize byte);
+    void emitByte(u8 byte);
+    void emitByte(u16 longByte);
+    template<typename First, typename ... Bytes>
+    void emitBytes(First byte, Bytes ... rest);
+    template<typename First>
+    void emitBytes(First byte);
 
     std::unique_ptr<ChunkData> chunkData;
 

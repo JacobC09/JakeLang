@@ -4,6 +4,7 @@ Chunk Compiler::compile(Ast& ast) {
     hadError = false;
     newChunk();
     body(ast.body);
+    endChunk();
     return chunkData->chunk;
 }
 
@@ -23,8 +24,29 @@ void Compiler::error(std::string msg) {
     printf("    %s\n", msg.c_str());
 }
 
+template <typename ByteSize>
+void Compiler::emitByte(ByteSize byte) {
+    emitByte((u8) byte);
+}
+
 void Compiler::emitByte(u8 byte) {
     getChunk()->bytecode.push_back(byte);
+}
+
+void Compiler::emitByte(u16 longByte) {
+    emitByte((u8) ((longByte >> 8) & 0xff));
+    emitByte((u8) (longByte & 0xff));
+}
+
+template <typename First, typename... Bytes>
+void Compiler::emitBytes(First byte, Bytes ... rest) {
+    emitByte(byte);
+    emitBytes(rest...);
+}
+
+template <typename First>
+void Compiler::emitBytes(First byte) {
+    emitByte(byte);
 }
 
 void Compiler::newChunk() {
@@ -34,12 +56,16 @@ void Compiler::newChunk() {
     chunkData->scopeDepth = 0;
 }
 
+void Compiler::endChunk() {
+    emitByte(OpReturn);
+}
+
 void Compiler::body(std::vector<Stmt>& stmts) {
     for (Stmt& stmt : stmts) {
         switch (stmt.which()) {
             case Stmt::which<Ptr<ExprStmt>>(): {
                 expression(stmt.get<Ptr<ExprStmt>>()->expr);
-                emitByte(OpPop);
+                emitBytes(OpPop, 1);
                 break;
             }
 
@@ -57,7 +83,12 @@ void Compiler::body(std::vector<Stmt>& stmts) {
 void Compiler::expression(Expr expr) {
     switch (expr.which()) {
         case Expr::which<NumLiteral>(): {
-            emitNumberConstant(expr.get<NumLiteral>().value);
+            int index = makeNumberConstant(expr.get<NumLiteral>().value);
+            if (index > UINT8_MAX) {
+                emitBytes(OpConstantNumberDouble, (u16) index);
+            } else {
+                emitBytes(OpConstantNumber, (u8) index);
+            }
             break;
         }
 
@@ -67,7 +98,12 @@ void Compiler::expression(Expr expr) {
         }
 
         case Expr::which<StrLiteral>(): {
-            emitNameConstant(expr.get<StrLiteral>().value);
+            int index = makeNameConstant(expr.get<StrLiteral>().value);
+            if (index > UINT8_MAX) {
+                emitBytes(OpConstantNameDouble, (u16) index);
+            } else {
+                emitBytes(OpConstantName, (u8) index);
+            }
             break;
         }
 
@@ -138,7 +174,7 @@ void Compiler::expression(Expr expr) {
 
             switch (unaryExpr->op) {
                 case UnaryExpr::Operation::Negative:
-                    emitNumberConstant(-1);
+                    makeNumberConstant(-1);
                     emitByte(OpMultiply); 
                     break;
                 case UnaryExpr::Operation::Negate: 
@@ -155,59 +191,56 @@ void Compiler::expression(Expr expr) {
 }
 
 void Compiler::assignment(Ptr<AssignmentExpr>& expr) {
+    int arg = findLocal(expr->target.value);
 
+    u8 get, set;
+    if (arg == -1) {
+        get = OpGetGlobal;
+        set = OpSetGlobal;
+        // arg = emitNameConstant()
+    } else {
+        get = OpGetLocal;
+        set = OpSetLocal;
+    }
 }
 
 void Compiler::varDeclaration(Ptr<VarDeclaration>& declaration) {
+    if (chunkData->scopeDepth == 0) {
+        expression(declaration->expr);
+    }
+
+    // This also emits the constant operation
+    makeNameConstant(declaration->name.value);
+    emitByte(OpDefineGlobal);
 }
 
-void Compiler::emitNumberConstant(double value) {
+int Compiler::makeNumberConstant(double value) {
     auto& pool = getChunk()->constants.numbers;
     auto it = std::find(pool.begin(), pool.end(), value);
     
-    int index;
     if (it == pool.end()) {
-        index = (signed) pool.size();
         pool.push_back(value);
+        return pool.size() - 1;
     } else {
-        index = std::distance(pool.begin(), it);
-    }
-
-    if (index > UINT8_MAX) {
-        emitByte(OpConstantNumberDouble);
-        emitByte((u8) ((index >> 8) & 0xff));
-        emitByte((u8) (index & 0xff));
-    } else {
-        emitByte(OpConstantNumber);
-        emitByte((u8) index);
+        return std::distance(pool.begin(), it);
     }
 }
 
-void Compiler::emitNameConstant(std::string value) {
+int Compiler::makeNameConstant(std::string value) {
     auto& pool = getChunk()->constants.names;
     auto it = std::find(pool.begin(), pool.end(), value);
     
-    int index;
     if (it == pool.end()) {
-        index = (signed) pool.size();
         pool.push_back(value);
+        return (signed) pool.size() - 1;
     } else {
-        index = std::distance(pool.begin(), it);
-    }
-
-    if (index > UINT8_MAX) {
-        emitByte(OpConstantNameDouble);
-        emitByte((u8) ((index >> 8) & 0xff));
-        emitByte((u8) (index & 0xff));
-    } else {
-        emitByte(OpConstantName);
-        emitByte((u8) index);
+        return std::distance(pool.begin(), it);
     }
 }
 
 void Compiler::addLocal(std::string name) {
     for (auto& local : chunkData->locals) {
-        if (local.name == name) {
+        if (local.name == name && local.depth == chunkData->scopeDepth) {
             error(formatStr("Already a local called '%s'", name.c_str()));
             break;
         }
@@ -216,6 +249,16 @@ void Compiler::addLocal(std::string name) {
     chunkData->locals.push_back(Local {
         name, chunkData->scopeDepth
     });
+}
+
+int Compiler::findLocal(std::string name) {
+    for (int index = 0; index < (signed) chunkData->locals.size(); index++) {
+        if (chunkData->locals[index].name == name) {
+            return index;
+        }
+    }
+
+    return -1;
 }
 
 void Compiler::beginScope() {
@@ -227,10 +270,3 @@ void Compiler::endScope() {
     emitBytes(OpPop, (u8) chunkData->locals.size());
     chunkData->locals.clear();
 }
-
-template <typename... Bytes>
-void Compiler::emitBytes(u8 byte, Bytes ... rest) {
-    emitByte(byte);
-    emitBytes(rest...);
-}
-
