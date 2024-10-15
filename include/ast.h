@@ -56,7 +56,8 @@ using Stmt = Variant<
     Ptr<struct WhileLoop>,
     Ptr<struct ForLoop>,
     Ptr<struct ReturnStmt>,
-    Ptr<struct FuncDeclaration>
+    Ptr<struct FuncDeclaration>,
+    Ptr<struct VarDeclaration>
 >;
 
 struct AssignmentExpr {
@@ -137,8 +138,13 @@ struct ReturnStmt {
 
 struct FuncDeclaration {
     Identifier name;
-    std::vector<Expr> args;
+    std::vector<Identifier> args;
     std::vector<Stmt> body;
+};
+
+struct VarDeclaration {
+    Identifier name;
+    Expr expr;
 };
 
 // Ast

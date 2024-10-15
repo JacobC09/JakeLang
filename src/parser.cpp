@@ -60,7 +60,7 @@ void Parser::errorAt(Token& token, std::string msg) {
     
     hadError = true;
     printf("Error at line %d\n", token.line);
-    printf("\t%s\n", msg.c_str());
+    printf("    %s\n", msg.c_str());
 }
 
 bool Parser::isFinished() {
@@ -83,6 +83,10 @@ Expr Parser::assignment() {
     {
 
         if (prev.type == TokenType::Equal) {
+            if (!(target.which() == Expr::which<Ptr<AssignmentExpr>>() || target.which() == Expr::which<Identifier>())) {
+                errorAt(prev, "Invalid Assignment Target");
+            }
+
             target = AssignmentExpr {target, equality()};
             continue;
         }
@@ -339,6 +343,9 @@ Stmt Parser::statement() {
         case TokenType::Func:
             return funcDeclaration();
 
+        case TokenType::Var:
+            return varDeclaration();
+
         case TokenType::Break:
             advance();
             consume(TokenType::Semicolon, "Expected ';' after break");
@@ -410,7 +417,6 @@ Stmt Parser::forLoop() {
         return Empty {};
     }
     Identifier target = identifer().get<Identifier>();
-    
     consume(TokenType::In, "Expected 'in' after for loop target");
     Expr iterator = expression();
     consume(TokenType::LeftBrace, "Expected '{' after for iterator");
@@ -432,8 +438,38 @@ Stmt Parser::funcDeclaration() {
     }
     Identifier name = identifer().get<Identifier>();
     consume(TokenType::LeftParen, "Expected '(' after function name");
-    std::vector<Expr> args = exprList();
+    
+    std::vector<Identifier> args;
+    while (!isFinished()) {
+        Expr expr = expression();
+        if (expr.which() != Expr::which<Identifier>()) {
+            errorAt(prev, "Expected argument identifiers");
+            break;
+        }
+        args.push_back(expr.get<Identifier>());
+
+        if (!match(TokenType::Comma))
+            break;
+    }
+
     consume(TokenType::RightParen, "Expected ')' after function arguments");
     consume(TokenType::LeftBrace, "Expected '{' before function body");
     return FuncDeclaration {name, args, block()};
+}
+
+Stmt Parser::varDeclaration() {
+    advance();
+    if (!match(TokenType::Identifier)) {
+        errorAt(cur, "Function name must be an identifier");
+        return Empty {};
+    }
+    Identifier name = identifer().get<Identifier>();
+    Expr expr;
+    if (check(TokenType::Equal)) {
+        expr = expression();
+    } else {
+        expr = NoneLiteral{};
+    }
+    consume(TokenType::Semicolon, "Expected ';' after variable declaration");
+    return VarDeclaration {name, expr};
 }

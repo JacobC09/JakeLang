@@ -50,6 +50,7 @@ private:
     Stmt returnStmt();
 
     Stmt funcDeclaration();
+    Stmt varDeclaration();
     
 private:
     bool hadError;

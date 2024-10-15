@@ -1,7 +1,6 @@
 #pragma once
-#include "util.h"
 #include "ast.h"
-#include <set>
+#include "util.h"
 
 struct Prototype;
 
@@ -22,10 +21,17 @@ struct Prototype {
     Chunk chunk;
 };
 
+struct Local {
+    std::string name;
+    int depth;
+};
+
 struct ChunkData {
     ChunkData() = default;
-
+    int scopeDepth;
     Chunk chunk;
+    std::vector<Local> locals;
+    std::unique_ptr<struct ChunkData> enclosing;
 };
 
 class Compiler {
@@ -39,17 +45,24 @@ private:
     Chunk* getChunk();
     void error(std::string msg);
     void emitByte(u8 byte);
-
-    void body(std::vector<Stmt>& stmts);
-    void expression(Expr expr);
+    void newChunk();
     void emitNumberConstant(double value);
     void emitNameConstant(std::string value);
+    void addLocal(std::string name);
+    void beginScope();
+    void endScope();
+    void body(std::vector<Stmt>& stmts);
+    void expression(Expr expr);
+    void assignment(Ptr<AssignmentExpr>& expr);
+    void varDeclaration(Ptr<VarDeclaration>& declaration);
+
+    template<typename ... Bytes>
+    void emitBytes(u8 byte, Bytes ... rest);
 
     std::unique_ptr<ChunkData> chunkData;
 
     bool hadError;
 };
-
 
 enum Instructions : u8 {
     OpPop,

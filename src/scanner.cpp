@@ -157,6 +157,8 @@ Token Scanner::scanIdentifer() {
         token.type = TokenType::Return;
     } else if (token.value.compare("func") == 0) {
         token.type = TokenType::Func;
+    } else if (token.value.compare("var") == 0) {
+        token.type == TokenType::Var;
     }
 
     return token;

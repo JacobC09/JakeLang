@@ -18,7 +18,7 @@ void printToken(const Token& token) {
 
         "Identifier", "String", "Number", "True", "False", "None",
 
-        "Print", "If", "Else", "Loop", "While", "For", "In", "Continue", "Break", "Func",
+        "Print", "If", "Else", "Loop", "While", "For", "In", "Continue", "Break", "Func", "Var",
 
         "Error", "EndOfFile"
     };
