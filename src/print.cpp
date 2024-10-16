@@ -2,6 +2,8 @@
 #include "print.h"
 #include "debug.h"
 
+void printStmt(const Stmt& stmt, int indent);
+
 void printToken(const Token& token) {
     static const char* names[] = {
         "LeftParen", "RightParen",
@@ -109,6 +111,15 @@ void printExpr(const Expr& expr, int indent) {
             break;
         }
 
+        case Expr::which<Ptr<BlockExpr>>(): {
+            auto val = expr.get<Ptr<BlockExpr>>();
+            print("BlockExpr{}");
+            for (auto& stmt : val->body) {
+                printStmt(stmt, indent + 1);
+            }
+            break;
+        }
+
         case Expr::which<Empty>(): {
             print("Empty{}");
             break;
@@ -203,7 +214,8 @@ void printStmt(const Stmt& stmt, int indent) {
             print("ForLoop{}");
             printIndent(indent + 1);
             print("Target:");
-            printExpr(Expr {val->target}, indent + 2);
+            printIndent(indent + 2);
+            print(val->target.value);
             printIndent(indent + 1);
             print("Iterator:");
             printExpr(val->iterator, indent + 2);
@@ -232,7 +244,8 @@ void printStmt(const Stmt& stmt, int indent) {
             print("FuncDeclaration{}");
             printIndent(indent + 1);
             print("Name:");
-            printExpr(Expr {val->name}, indent + 2);
+            printIndent(indent + 2);
+            print(val->name.value);
             printIndent(indent + 1);
             print("Arguments:");
             for (auto& expr : val->args) {
@@ -248,6 +261,19 @@ void printStmt(const Stmt& stmt, int indent) {
             break;
         }
 
+        case Stmt::which<Ptr<VarDeclaration>>(): {
+            auto val = stmt.get<Ptr<VarDeclaration>>();
+            print("ValDeclaration{}");
+            printIndent(indent + 1);
+            print("Name:");
+            printIndent(indent + 2);
+            print(val->name.value);
+            printIndent(indent + 1);
+            print("Expr:");
+            printExpr(val->expr, indent + 2);
+            break;
+        }
+
 
         case Stmt::which<Empty>(): {
             print("Empty{}");
@@ -255,6 +281,7 @@ void printStmt(const Stmt& stmt, int indent) {
         }
 
         default:
+            print("UnknownStmt{}");
             break;
     }
 }
@@ -273,17 +300,8 @@ int simpleInstruction(const char* name, int index) {
     return index + 1;
 }
 
-int constantInstruction(const char* name, const Chunk& chunk, int index, bool isDouble=false, bool isName=false) {
-    index++;
-    int constant;
-    
-    if (isDouble) {
-        constant = chunk.bytecode[index] << 8 | chunk.bytecode[index + 1];
-        index += 2;
-    } else {
-        constant = chunk.bytecode[index];
-        index += 1;
-    }
+int constantInstruction(const char* name, const Chunk& chunk, int index, bool isName=false) {
+    int constant = chunk.bytecode[index + 1];
 
     if (isName) {
         printf("%-16s %s (%d)\n", name, chunk.constants.names[constant].c_str(), constant);
@@ -296,8 +314,13 @@ int constantInstruction(const char* name, const Chunk& chunk, int index, bool is
         }
     }
 
-    return index;
+    return index + 2;
 
+}
+
+int byteInstruction(const char* name, const Chunk& chunk, int index) {
+    printf("%-16s %4d\n", name, chunk.bytecode[index + 1]);
+    return index + 2;
 }
 
 int disassembleInstruction(const Chunk& chunk, int index) {
@@ -305,23 +328,17 @@ int disassembleInstruction(const Chunk& chunk, int index) {
     
     switch (chunk.bytecode[index]) {
         case OpPop:
-            printf("%-16s %i\n", "Pop", chunk.bytecode[index + 1]);
-            index += 2;
+            index = byteInstruction("Pop", chunk, index);
             break;
         case OpReturn:
-            index = simpleInstruction("Return", index);
+            index = byteInstruction("Return", chunk, index);
             break;
         case OpConstantNumber:
-            index = constantInstruction("Number Constant", chunk, index, false, false);
+            index = constantInstruction("Number Constant", chunk, index, false);
             break;
         case OpConstantName:
-            index = constantInstruction("Name Constant", chunk, index, false, true);
+            index = constantInstruction("Name Constant", chunk, index, true);
             break;
-        case OpConstantNumberDouble:
-            index = constantInstruction("(d) Number Constant", chunk, index, true, false);
-            break;
-        case OpConstantNameDouble:
-            index = constantInstruction("(d) Name Constant", chunk, index, true, true);
             break;
         case OpTrue:
             index = simpleInstruction("True", index);
@@ -372,19 +389,19 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             index = simpleInstruction("Print", index);
             break;
         case OpDefineGlobal:
-            index = simpleInstruction("DefineGlobal", index);
+            index = constantInstruction("DefineGlobal", chunk, index, true);
             break;
         case OpGetGlobal:
-            index = simpleInstruction("GetGlobal", index);
+            index = constantInstruction("GetGlobal", chunk, index, true);
             break;
         case OpSetGlobal:
-            index = simpleInstruction("SetGlobal", index);
+            index = constantInstruction("SetGlobal", chunk, index, true);
             break;
         case OpGetLocal:
-            index = simpleInstruction("GetLocal", index);
+            index = byteInstruction("GetLocal", chunk, index);
             break;
         case OpSetLocal:
-            index = simpleInstruction("SetLocal", index);
+            index = byteInstruction("SetLocal", chunk, index);
             break;
         case OpGetUpValue:
             index = simpleInstruction("GetUpValue", index);

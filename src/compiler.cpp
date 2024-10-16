@@ -1,8 +1,10 @@
+#include <cstring>
 #include "compiler.h"
 
 Chunk Compiler::compile(Ast& ast) {
     hadError = false;
     newChunk();
+    chunkData->global = true;
     body(ast.body);
     endChunk();
     return chunkData->chunk;
@@ -24,29 +26,26 @@ void Compiler::error(std::string msg) {
     printf("    %s\n", msg.c_str());
 }
 
-template <typename ByteSize>
-void Compiler::emitByte(ByteSize byte) {
-    emitByte((u8) byte);
+void Compiler::emitByte(u8 value) {
+    getChunk()->bytecode.push_back(value);
 }
 
-void Compiler::emitByte(u8 byte) {
-    getChunk()->bytecode.push_back(byte);
+template<typename First>
+void Compiler::emitByte(First value) {
+    if (value > UINT8_MAX) {
+        u16 maxVal = (u16) value;
+        emitByte((u8) ((maxVal >> 8) & 0xff));
+        emitByte((u8) (maxVal & 0xff));
+        return;
+    }
+    emitByte((u8) value);
+    return;
 }
 
-void Compiler::emitByte(u16 longByte) {
-    emitByte((u8) ((longByte >> 8) & 0xff));
-    emitByte((u8) (longByte & 0xff));
-}
-
-template <typename First, typename... Bytes>
-void Compiler::emitBytes(First byte, Bytes ... rest) {
+template <typename First, typename... Rest>
+void Compiler::emitByte(First byte, Rest... rest) {
     emitByte(byte);
-    emitBytes(rest...);
-}
-
-template <typename First>
-void Compiler::emitBytes(First byte) {
-    emitByte(byte);
+    emitByte(rest...);
 }
 
 void Compiler::newChunk() {
@@ -54,6 +53,7 @@ void Compiler::newChunk() {
     chunkData = std::make_unique<ChunkData>();
     chunkData->enclosing = std::move(enclosing);
     chunkData->scopeDepth = 0;
+    chunkData->global = false;
 }
 
 void Compiler::endChunk() {
@@ -65,12 +65,22 @@ void Compiler::body(std::vector<Stmt>& stmts) {
         switch (stmt.which()) {
             case Stmt::which<Ptr<ExprStmt>>(): {
                 expression(stmt.get<Ptr<ExprStmt>>()->expr);
-                emitBytes(OpPop, 1);
+                emitByte(OpPop, (u8) 1);
                 break;
             }
 
             case Stmt::which<Ptr<VarDeclaration>>(): {
-                
+                varDeclaration(stmt.get<Ptr<VarDeclaration>>());
+                break;
+            }
+
+            case Stmt::which<Ptr<ReturnStmt>>(): {
+                auto val = stmt.get<Ptr<ReturnStmt>>();
+                for (auto& expr : val->values) {
+                    expression(expr);
+                }
+                emitByte(OpReturn, val->values.size());
+                break;
             }
             
             default:
@@ -84,11 +94,7 @@ void Compiler::expression(Expr expr) {
     switch (expr.which()) {
         case Expr::which<NumLiteral>(): {
             int index = makeNumberConstant(expr.get<NumLiteral>().value);
-            if (index > UINT8_MAX) {
-                emitBytes(OpConstantNumberDouble, (u16) index);
-            } else {
-                emitBytes(OpConstantNumber, (u8) index);
-            }
+            emitByte(OpConstantNumber, (u8) index);
             break;
         }
 
@@ -99,11 +105,7 @@ void Compiler::expression(Expr expr) {
 
         case Expr::which<StrLiteral>(): {
             int index = makeNameConstant(expr.get<StrLiteral>().value);
-            if (index > UINT8_MAX) {
-                emitBytes(OpConstantNameDouble, (u16) index);
-            } else {
-                emitBytes(OpConstantName, (u8) index);
-            }
+            emitByte(OpConstantName, (u8) index);
             break;
         }
 
@@ -183,6 +185,15 @@ void Compiler::expression(Expr expr) {
             }
         }
 
+        case Expr::which<Ptr<BlockExpr>>(): {
+            auto block = expr.get<Ptr<BlockExpr>>();
+            beginScope();
+            body(block->body);
+            endScope();
+            break;
+        }
+
+
         case Expr::which<Empty>():
         default:
             error("Invalid expression");
@@ -190,52 +201,62 @@ void Compiler::expression(Expr expr) {
     }
 }
 
-void Compiler::assignment(Ptr<AssignmentExpr>& expr) {
-    int arg = findLocal(expr->target.value);
+void Compiler::assignment(Ptr<AssignmentExpr>& assignment) {
+    int arg = findLocal(assignment->target.value);
 
-    u8 get, set;
     if (arg == -1) {
-        get = OpGetGlobal;
-        set = OpSetGlobal;
-        // arg = emitNameConstant()
+        emitByte(OpSetGlobal);
+        emitByte(makeNameConstant(assignment->target.value));
     } else {
-        get = OpGetLocal;
-        set = OpSetLocal;
+        emitByte(OpSetLocal, arg);
     }
+
+    expression(assignment->expr);
 }
 
 void Compiler::varDeclaration(Ptr<VarDeclaration>& declaration) {
     if (chunkData->scopeDepth == 0) {
-        expression(declaration->expr);
+        emitByte(OpDefineGlobal);
+        emitByte(makeNameConstant(declaration->name.value));
     }
 
-    // This also emits the constant operation
-    makeNameConstant(declaration->name.value);
-    emitByte(OpDefineGlobal);
+    expression(declaration->expr);
 }
 
 int Compiler::makeNumberConstant(double value) {
     auto& pool = getChunk()->constants.numbers;
     auto it = std::find(pool.begin(), pool.end(), value);
-    
+    int index;
     if (it == pool.end()) {
         pool.push_back(value);
-        return pool.size() - 1;
+        index = pool.size() - 1;
     } else {
-        return std::distance(pool.begin(), it);
+        index = std::distance(pool.begin(), it);
     }
+
+    if (index > UINT8_MAX) {
+        error("Too many constants in pool");
+    }
+
+    return index;
 }
 
 int Compiler::makeNameConstant(std::string value) {
     auto& pool = getChunk()->constants.names;
     auto it = std::find(pool.begin(), pool.end(), value);
-    
+    int index;
     if (it == pool.end()) {
         pool.push_back(value);
-        return (signed) pool.size() - 1;
+        index = (signed) pool.size() - 1;
     } else {
-        return std::distance(pool.begin(), it);
+        index = std::distance(pool.begin(), it);
     }
+
+    if (index > UINT8_MAX) {
+        error("Too many constants in pool");
+    }
+
+    return index;
 }
 
 void Compiler::addLocal(std::string name) {
@@ -267,6 +288,6 @@ void Compiler::beginScope() {
 
 void Compiler::endScope() {
     chunkData->scopeDepth++;
-    emitBytes(OpPop, (u8) chunkData->locals.size());
+    emitByte(OpPop, (u8) chunkData->locals.size());
     chunkData->locals.clear();
 }

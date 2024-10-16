@@ -1,1 +1,3 @@
-hi = 2;
+var blockVar = 2 + {
+    return 2;
+}

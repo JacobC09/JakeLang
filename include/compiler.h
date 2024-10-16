@@ -29,6 +29,7 @@ struct Local {
 struct ChunkData {
     ChunkData() = default;
     int scopeDepth;
+    bool global;
     Chunk chunk;
     std::vector<Local> locals;
     std::unique_ptr<struct ChunkData> enclosing;
@@ -54,17 +55,14 @@ private:
     void endScope();
     void body(std::vector<Stmt>& stmts);
     void expression(Expr expr);
-    void assignment(Ptr<AssignmentExpr>& expr);
+    void assignment(Ptr<AssignmentExpr>& assignment);
     void varDeclaration(Ptr<VarDeclaration>& declaration);
 
-    template<typename ByteSize>
-    void emitByte(ByteSize byte);
-    void emitByte(u8 byte);
-    void emitByte(u16 longByte);
-    template<typename First, typename ... Bytes>
-    void emitBytes(First byte, Bytes ... rest);
+    void emitByte(u8 value);
     template<typename First>
-    void emitBytes(First byte);
+    void emitByte(First value);
+    template<typename First, typename ... Rest>
+    void emitByte(First byte, Rest ... rest);
 
     std::unique_ptr<ChunkData> chunkData;
 
@@ -76,8 +74,6 @@ enum Instructions : u8 {
     OpReturn,
     OpConstantName,
     OpConstantNumber,
-    OpConstantNameDouble,
-    OpConstantNumberDouble,
     OpTrue,
     OpFalse,
     OpNone,
