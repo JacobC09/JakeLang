@@ -153,7 +153,9 @@ void printStmt(const Stmt& stmt, int indent) {
         case Stmt::which<Ptr<PrintStmt>>(): {
             auto val = stmt.get<Ptr<PrintStmt>>();
             print("PrintStmt{}");
-            printExpr(val->expr, indent + 1);
+            for (auto& expr : val->exprs) {
+                printExpr(expr, indent + 1);
+            }
             break;
         }
         
@@ -314,6 +316,12 @@ int byteInstruction(const char* name, int index, const Chunk& chunk) {
     return index + 2;
 }
 
+int shortInstruction(const char* name, int index, const Chunk& chunk) {
+    int val = chunk.bytecode[index + 1] << 8 | chunk.bytecode[index + 2];
+    printf("%-16s %4d\n", name, val);
+    return index + 3;
+}
+
 int disassembleInstruction(const Chunk& chunk, int index) {
     printf("%04d ", index);
     
@@ -329,7 +337,6 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             break;
         case OpConstantName:
             index = constantInstruction("Name Constant", index, chunk, true);
-            break;
             break;
         case OpTrue:
             index = simpleInstruction("True", index);
@@ -377,7 +384,7 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             index = simpleInstruction("Negate", index);
             break;
         case OpPrint:
-            index = simpleInstruction("Print", index);
+            index = byteInstruction("Print", index, chunk);
             break;
         case OpDefineGlobal:
             index = constantInstruction("DefineGlobal", index, chunk, true);
@@ -404,16 +411,16 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             index = simpleInstruction("CloseUpValue", index);
             break;
         case OpJump:
-            index = simpleInstruction("Jump", index);
+            index = shortInstruction("Jump", index, chunk);
             break;
         case OpJumpBack:
-            index = simpleInstruction("JumpBack", index);
+            index = shortInstruction("JumpBack", index, chunk);
             break;
         case OpJumpIfTrue:
-            index = simpleInstruction("JumpIfTrue", index);
+            index = shortInstruction("JumpIfTrue", index, chunk);
             break;
         case OpJumpIfFalse:
-            index = simpleInstruction("JumpIfFalse", index);
+            index = shortInstruction("JumpIfFalse", index, chunk);
             break;
         case OpCall:
             index = simpleInstruction("Call", index);

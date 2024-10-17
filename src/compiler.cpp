@@ -31,16 +31,30 @@ void Compiler::emitByte(u8 value) {
     getChunk()->bytecode.push_back(value);
 }
 
-template <typename First>
-void Compiler::emitByte(First value) {
-    if (value > UINT8_MAX) {
-        u16 maxVal = (u16)value;
-        emitByte((u8)((maxVal >> 8) & 0xff));
-        emitByte((u8)(maxVal & 0xff));
+void Compiler::emitByte(u16 value) {
+    emitByte((u8)((value >> 8) & 0xff));
+    emitByte((u8)(value & 0xff));
+}
+
+int Compiler::emitJump(u8 jump) {
+    emitByte(jump, 0, 0);
+    return getChunk()->bytecode.size() - 2;
+}
+
+void Compiler::patchJump(int index) {
+    int to = getChunk()->bytecode.size() - 1;
+    if (to > UINT16_MAX) {
+        error("Condition jump too large");
         return;
     }
+
+    getChunk()->bytecode[index] = (u8)((to >> 8) & 0xff);
+    getChunk()->bytecode[index + 1] = (u8)(to & 0xff);
+}
+
+template <typename First>
+void Compiler::emitByte(First value) {
     emitByte((u8)value);
-    return;
 }
 
 template <typename First, typename... Rest>
@@ -70,15 +84,45 @@ void Compiler::body(std::vector<Stmt>& stmts) {
                 break;
             }
 
-            case Stmt::which<Ptr<VarDeclaration>>(): {
-                varDeclaration(stmt.get<Ptr<VarDeclaration>>());
-                break;
-            }
-
             case Stmt::which<Ptr<ReturnStmt>>(): {
                 auto val = stmt.get<Ptr<ReturnStmt>>();
                 expression(val->value);
                 emitByte(OpReturn);
+                break;
+            }
+
+            case Stmt::which<Ptr<PrintStmt>>(): {
+                printStmt(stmt.get<Ptr<PrintStmt>>());
+                break;
+            }
+
+            case Stmt::which<Ptr<IfStmt>>(): {
+                ifStmt(stmt.get<Ptr<IfStmt>>());
+                break;
+            }
+
+            case Stmt::which<Ptr<LoopBlock>>(): {
+                loopBlock(stmt.get<Ptr<LoopBlock>>());
+                break;
+            }
+
+            case Stmt::which<Ptr<WhileLoop>>(): {
+                whileLoop(stmt.get<Ptr<WhileLoop>>());
+                break;
+            }
+
+            case Stmt::which<Ptr<ForLoop>>(): {
+                forLoop(stmt.get<Ptr<ForLoop>>());
+                break;
+            }
+
+            case Stmt::which<Ptr<FuncDeclaration>>(): {
+                funcDeclaration(stmt.get<Ptr<FuncDeclaration>>());
+                break;
+            }
+
+            case Stmt::which<Ptr<VarDeclaration>>(): {
+                varDeclaration(stmt.get<Ptr<VarDeclaration>>());
                 break;
             }
 
@@ -212,7 +256,7 @@ void Compiler::assignment(Ptr<AssignmentExpr>& assignment) {
     }
 }
 
-void Compiler::identifier(Identifier id) {
+void Compiler::identifier(Identifier& id) {
     int arg = findLocal(id.value);
 
     if (arg == -1) {
@@ -223,16 +267,46 @@ void Compiler::identifier(Identifier id) {
     }
 }
 
-void Compiler::varDeclaration(Ptr<VarDeclaration>& declaration) {
-    expression(declaration->expr);
+void Compiler::printStmt(Ptr<PrintStmt>& stmt) {
+    for (auto& expr : stmt->exprs) {
+        expression(expr);
+    }
+    emitByte(OpPrint, stmt->exprs.size());
+}
+
+void Compiler::ifStmt(Ptr<IfStmt>& stmt) {
+    expression(stmt->condition);
+    int elseJump = emitJump(OpJumpIfFalse);
+    emitJump(OpPop);
+    body(stmt->body);
+    int endJump = emitJump(OpJump);
+    patchJump(elseJump);
+    emitByte(OpPop);
+    body(stmt->orelse);
+    patchJump(endJump);
+}
+
+void Compiler::loopBlock(Ptr<LoopBlock>& stmt) {
+}
+
+void Compiler::whileLoop(Ptr<WhileLoop>& stmt) {
+}
+
+void Compiler::forLoop(Ptr<ForLoop>& stmt) {
+}
+void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
+}
+
+void Compiler::varDeclaration(Ptr<VarDeclaration>& stmt) {
+    expression(stmt->expr);
 
     if (chunkData->scopeDepth == 0) {
         emitByte(OpDefineGlobal);
-        emitByte(makeNameConstant(declaration->name.value));
+        emitByte(makeNameConstant(stmt->name.value));
         return;
     }
 
-    addLocal(declaration->name.value);
+    addLocal(stmt->name.value);
 }
 
 int Compiler::makeNumberConstant(double value) {

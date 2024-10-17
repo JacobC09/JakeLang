@@ -56,14 +56,24 @@ private:
     void body(std::vector<Stmt>& stmts);
     void expression(Expr expr);
     void assignment(Ptr<AssignmentExpr>& assignment);
-    void identifier(Identifier id);
-    void varDeclaration(Ptr<VarDeclaration>& declaration);
+    void identifier(Identifier& id);
+    void printStmt(Ptr<PrintStmt>& stmt);
+    void ifStmt(Ptr<IfStmt>& stmt);
+    void loopBlock(Ptr<LoopBlock>& stmt);
+    void whileLoop(Ptr<WhileLoop>& stmt);
+    void forLoop(Ptr<ForLoop>& stmt);
+    void funcDeclaration(Ptr<FuncDeclaration>& stmt);
+    void varDeclaration(Ptr<VarDeclaration>& stmt);
 
     void emitByte(u8 value);
+    void emitByte(u16 value);
     template<typename First>
     void emitByte(First value);
     template<typename First, typename ... Rest>
     void emitByte(First byte, Rest ... rest);
+    
+    int emitJump(u8 jump);
+    void patchJump(int index);
 
     std::unique_ptr<ChunkData> chunkData;
 

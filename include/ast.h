@@ -106,7 +106,7 @@ struct ExprStmt {
 };
 
 struct PrintStmt {
-    Expr expr;
+    std::vector<Expr> exprs;
 };
 
 struct IfStmt {

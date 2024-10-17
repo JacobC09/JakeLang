@@ -382,11 +382,11 @@ Stmt Parser::exprStmt() {
 
 Stmt Parser::printStmt() {
     advance();
-    Expr expr = expression();
+    std::vector<Expr> exprs = exprList();
     if (prev.type != TokenType::RightBrace) {
         consume(TokenType::Semicolon, "Expected ';' after print statement");
     }
-    return PrintStmt{expr};
+    return PrintStmt{exprs};
 }
 
 Stmt Parser::ifStmt() {
