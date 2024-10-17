@@ -131,7 +131,7 @@ struct ForLoop {
 };
 
 struct ReturnStmt {
-    std::vector<Expr> values;
+    Expr value;
 };
 
 // Declarations

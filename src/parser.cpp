@@ -112,7 +112,7 @@ Expr Parser::assignment() {
                     break;
             }
 
-            right = BinaryExpr{op, target, equality()};
+            right = BinaryExpr{op, target, right};
         }
 
         target = AssignmentExpr{target.get<Identifier>(), right};
@@ -436,11 +436,9 @@ Stmt Parser::forLoop() {
 
 Stmt Parser::returnStmt() {
     advance();
-    std::vector<Expr> values = exprList();
-    if (prev.type != TokenType::RightBrace) {
-        consume(TokenType::Semicolon, "Expected ';' after return statement");
-    }
-    return ReturnStmt{values};
+    Expr value = expression();
+    consume(TokenType::Semicolon, "Expected ';' after return statement");
+    return ReturnStmt{value};
 }
 
 Stmt Parser::funcDeclaration() {

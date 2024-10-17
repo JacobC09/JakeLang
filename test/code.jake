@@ -1,3 +1,7 @@
-var blockVar = 2 + {
-    return 2;
+var hi = 2;
+
+hi += {
+    var getTime;
+    var time = getTime;
+    return time - 2;
 }

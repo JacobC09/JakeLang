@@ -1,5 +1,6 @@
-#include <cstring>
 #include "compiler.h"
+
+#include <cstring>
 
 Chunk Compiler::compile(Ast& ast) {
     hadError = false;
@@ -20,7 +21,7 @@ bool Compiler::failed() {
 
 void Compiler::error(std::string msg) {
     if (hadError) return;
-    
+
     hadError = true;
     printf("Error during compilation\n");
     printf("    %s\n", msg.c_str());
@@ -30,15 +31,15 @@ void Compiler::emitByte(u8 value) {
     getChunk()->bytecode.push_back(value);
 }
 
-template<typename First>
+template <typename First>
 void Compiler::emitByte(First value) {
     if (value > UINT8_MAX) {
-        u16 maxVal = (u16) value;
-        emitByte((u8) ((maxVal >> 8) & 0xff));
-        emitByte((u8) (maxVal & 0xff));
+        u16 maxVal = (u16)value;
+        emitByte((u8)((maxVal >> 8) & 0xff));
+        emitByte((u8)(maxVal & 0xff));
         return;
     }
-    emitByte((u8) value);
+    emitByte((u8)value);
     return;
 }
 
@@ -65,7 +66,7 @@ void Compiler::body(std::vector<Stmt>& stmts) {
         switch (stmt.which()) {
             case Stmt::which<Ptr<ExprStmt>>(): {
                 expression(stmt.get<Ptr<ExprStmt>>()->expr);
-                emitByte(OpPop, (u8) 1);
+                emitByte(OpPop, (u8)1);
                 break;
             }
 
@@ -76,13 +77,11 @@ void Compiler::body(std::vector<Stmt>& stmts) {
 
             case Stmt::which<Ptr<ReturnStmt>>(): {
                 auto val = stmt.get<Ptr<ReturnStmt>>();
-                for (auto& expr : val->values) {
-                    expression(expr);
-                }
-                emitByte(OpReturn, val->values.size());
+                expression(val->value);
+                emitByte(OpReturn);
                 break;
             }
-            
+
             default:
                 error("Invalid statement");
                 break;
@@ -94,7 +93,7 @@ void Compiler::expression(Expr expr) {
     switch (expr.which()) {
         case Expr::which<NumLiteral>(): {
             int index = makeNumberConstant(expr.get<NumLiteral>().value);
-            emitByte(OpConstantNumber, (u8) index);
+            emitByte(OpConstantNumber, (u8)index);
             break;
         }
 
@@ -105,7 +104,7 @@ void Compiler::expression(Expr expr) {
 
         case Expr::which<StrLiteral>(): {
             int index = makeNameConstant(expr.get<StrLiteral>().value);
-            emitByte(OpConstantName, (u8) index);
+            emitByte(OpConstantName, (u8)index);
             break;
         }
 
@@ -115,6 +114,7 @@ void Compiler::expression(Expr expr) {
         }
 
         case Expr::which<Identifier>(): {
+            identifier(expr.get<Identifier>());
             break;
         }
 
@@ -130,39 +130,39 @@ void Compiler::expression(Expr expr) {
             expression(binaryExpr->right);
 
             switch (binaryExpr->op) {
-                case BinaryExpr::Operation::Add: 
-                    emitByte(OpAdd); 
+                case BinaryExpr::Operation::Add:
+                    emitByte(OpAdd);
                     break;
-                case BinaryExpr::Operation::Subtract: 
-                    emitByte(OpSubtract); 
+                case BinaryExpr::Operation::Subtract:
+                    emitByte(OpSubtract);
                     break;
-                case BinaryExpr::Operation::Multiply: 
-                    emitByte(OpMultiply); 
+                case BinaryExpr::Operation::Multiply:
+                    emitByte(OpMultiply);
                     break;
-                case BinaryExpr::Operation::Divide: 
-                    emitByte(OpDivide); 
+                case BinaryExpr::Operation::Divide:
+                    emitByte(OpDivide);
                     break;
-                case BinaryExpr::Operation::Exponent: 
-                    emitByte(OpExponent); 
+                case BinaryExpr::Operation::Exponent:
+                    emitByte(OpExponent);
                     break;
-                case BinaryExpr::Operation::GreaterThan: 
-                    emitByte(OpGreater); 
+                case BinaryExpr::Operation::GreaterThan:
+                    emitByte(OpGreater);
                     break;
-                case BinaryExpr::Operation::LessThan: 
-                    emitByte(OpLess); 
+                case BinaryExpr::Operation::LessThan:
+                    emitByte(OpLess);
                     break;
-                case BinaryExpr::Operation::GreaterThanOrEq: 
-                    emitByte(OpGreaterThanOrEq); 
+                case BinaryExpr::Operation::GreaterThanOrEq:
+                    emitByte(OpGreaterThanOrEq);
                     break;
-                case BinaryExpr::Operation::LessThanOrEq: 
-                    emitByte(OpLessThanOrEq); 
+                case BinaryExpr::Operation::LessThanOrEq:
+                    emitByte(OpLessThanOrEq);
                     break;
-                case BinaryExpr::Operation::Equal: 
-                    emitByte(OpEqual); 
+                case BinaryExpr::Operation::Equal:
+                    emitByte(OpEqual);
                     break;
                 case BinaryExpr::Operation::NotEqual:
                     emitByte(OpEqual);
-                    emitByte(OpNot); 
+                    emitByte(OpNot);
                     break;
             }
 
@@ -177,10 +177,10 @@ void Compiler::expression(Expr expr) {
             switch (unaryExpr->op) {
                 case UnaryExpr::Operation::Negative:
                     makeNumberConstant(-1);
-                    emitByte(OpMultiply); 
+                    emitByte(OpMultiply);
                     break;
-                case UnaryExpr::Operation::Negate: 
-                    emitByte(OpNot); 
+                case UnaryExpr::Operation::Negate:
+                    emitByte(OpNot);
                     break;
             }
         }
@@ -193,7 +193,6 @@ void Compiler::expression(Expr expr) {
             break;
         }
 
-
         case Expr::which<Empty>():
         default:
             error("Invalid expression");
@@ -202,25 +201,38 @@ void Compiler::expression(Expr expr) {
 }
 
 void Compiler::assignment(Ptr<AssignmentExpr>& assignment) {
-    int arg = findLocal(assignment->target.value);
+    expression(assignment->expr);
 
+    int arg = findLocal(assignment->target.value);
     if (arg == -1) {
         emitByte(OpSetGlobal);
         emitByte(makeNameConstant(assignment->target.value));
     } else {
         emitByte(OpSetLocal, arg);
     }
+}
 
-    expression(assignment->expr);
+void Compiler::identifier(Identifier id) {
+    int arg = findLocal(id.value);
+
+    if (arg == -1) {
+        emitByte(OpGetGlobal);
+        emitByte(makeNameConstant(id.value));
+    } else {
+        emitByte(OpGetLocal, arg);
+    }
 }
 
 void Compiler::varDeclaration(Ptr<VarDeclaration>& declaration) {
+    expression(declaration->expr);
+
     if (chunkData->scopeDepth == 0) {
         emitByte(OpDefineGlobal);
         emitByte(makeNameConstant(declaration->name.value));
+        return;
     }
 
-    expression(declaration->expr);
+    addLocal(declaration->name.value);
 }
 
 int Compiler::makeNumberConstant(double value) {
@@ -247,7 +259,7 @@ int Compiler::makeNameConstant(std::string value) {
     int index;
     if (it == pool.end()) {
         pool.push_back(value);
-        index = (signed) pool.size() - 1;
+        index = (signed)pool.size() - 1;
     } else {
         index = std::distance(pool.begin(), it);
     }
@@ -267,13 +279,12 @@ void Compiler::addLocal(std::string name) {
         }
     }
 
-    chunkData->locals.push_back(Local {
-        name, chunkData->scopeDepth
-    });
+    chunkData->locals.push_back(Local{
+        name, chunkData->scopeDepth});
 }
 
 int Compiler::findLocal(std::string name) {
-    for (int index = 0; index < (signed) chunkData->locals.size(); index++) {
+    for (int index = 0; index < (signed)chunkData->locals.size(); index++) {
         if (chunkData->locals[index].name == name) {
             return index;
         }
@@ -288,6 +299,6 @@ void Compiler::beginScope() {
 
 void Compiler::endScope() {
     chunkData->scopeDepth++;
-    emitByte(OpPop, (u8) chunkData->locals.size());
+    emitByte(OpPop, (u8)chunkData->locals.size());
     chunkData->locals.clear();
 }

@@ -56,6 +56,7 @@ private:
     void body(std::vector<Stmt>& stmts);
     void expression(Expr expr);
     void assignment(Ptr<AssignmentExpr>& assignment);
+    void identifier(Identifier id);
     void varDeclaration(Ptr<VarDeclaration>& declaration);
 
     void emitByte(u8 value);

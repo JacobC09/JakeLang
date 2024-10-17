@@ -77,8 +77,7 @@ void printExpr(const Expr& expr, int indent) {
         case Expr::which<Ptr<AssignmentExpr>>(): {
             auto val = expr.get<Ptr<AssignmentExpr>>();
 
-            print("AssigmentExpr{}");
-            printExpr(val->target, indent + 1);
+            printf("AssigmentExpr{%s}\n", val->target.value.c_str());
             printExpr(val->expr, indent + 1);
             break;
         }
@@ -232,9 +231,7 @@ void printStmt(const Stmt& stmt, int indent) {
         case Stmt::which<Ptr<ReturnStmt>>(): {
             auto val = stmt.get<Ptr<ReturnStmt>>();
             print("ReturnStmt{}");
-            for (auto& expr : val->values) {
-                printExpr(expr, indent + 1);
-            }
+            printExpr(val->value, indent + 1);
 
             break;
         }
@@ -263,14 +260,8 @@ void printStmt(const Stmt& stmt, int indent) {
 
         case Stmt::which<Ptr<VarDeclaration>>(): {
             auto val = stmt.get<Ptr<VarDeclaration>>();
-            print("ValDeclaration{}");
-            printIndent(indent + 1);
-            print("Name:");
-            printIndent(indent + 2);
-            print(val->name.value);
-            printIndent(indent + 1);
-            print("Expr:");
-            printExpr(val->expr, indent + 2);
+            printf("ValDeclaration{%s}\n", val->name.value.c_str());
+            printExpr(val->expr, indent + 1);
             break;
         }
 
@@ -300,7 +291,7 @@ int simpleInstruction(const char* name, int index) {
     return index + 1;
 }
 
-int constantInstruction(const char* name, const Chunk& chunk, int index, bool isName=false) {
+int constantInstruction(const char* name, int index, const Chunk& chunk, bool isName=false) {
     int constant = chunk.bytecode[index + 1];
 
     if (isName) {
@@ -318,7 +309,7 @@ int constantInstruction(const char* name, const Chunk& chunk, int index, bool is
 
 }
 
-int byteInstruction(const char* name, const Chunk& chunk, int index) {
+int byteInstruction(const char* name, int index, const Chunk& chunk) {
     printf("%-16s %4d\n", name, chunk.bytecode[index + 1]);
     return index + 2;
 }
@@ -328,16 +319,16 @@ int disassembleInstruction(const Chunk& chunk, int index) {
     
     switch (chunk.bytecode[index]) {
         case OpPop:
-            index = byteInstruction("Pop", chunk, index);
+            index = byteInstruction("Pop", index, chunk);
             break;
         case OpReturn:
-            index = byteInstruction("Return", chunk, index);
+            index = simpleInstruction("Return", index);
             break;
         case OpConstantNumber:
-            index = constantInstruction("Number Constant", chunk, index, false);
+            index = constantInstruction("Number Constant", index, chunk, false);
             break;
         case OpConstantName:
-            index = constantInstruction("Name Constant", chunk, index, true);
+            index = constantInstruction("Name Constant", index, chunk, true);
             break;
             break;
         case OpTrue:
@@ -389,19 +380,19 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             index = simpleInstruction("Print", index);
             break;
         case OpDefineGlobal:
-            index = constantInstruction("DefineGlobal", chunk, index, true);
+            index = constantInstruction("DefineGlobal", index, chunk, true);
             break;
         case OpGetGlobal:
-            index = constantInstruction("GetGlobal", chunk, index, true);
+            index = constantInstruction("GetGlobal", index, chunk, true);
             break;
         case OpSetGlobal:
-            index = constantInstruction("SetGlobal", chunk, index, true);
+            index = constantInstruction("SetGlobal", index, chunk, true);
             break;
         case OpGetLocal:
-            index = byteInstruction("GetLocal", chunk, index);
+            index = byteInstruction("GetLocal", index, chunk);
             break;
         case OpSetLocal:
-            index = byteInstruction("SetLocal", chunk, index);
+            index = byteInstruction("SetLocal", index, chunk);
             break;
         case OpGetUpValue:
             index = simpleInstruction("GetUpValue", index);
@@ -470,6 +461,6 @@ void printChunk(const Chunk& chunk, std::string name) {
         index = disassembleInstruction(chunk, index);
     }
 
-    printf(">===%s===<\n", std::string(name.size() + 2, '=').c_str());
+    printf(">====%s====<\n", std::string(name.size(), '=').c_str());
 
 }
