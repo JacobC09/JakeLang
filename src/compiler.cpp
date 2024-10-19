@@ -42,13 +42,13 @@ int Compiler::emitJump(u8 jump) {
 }
 
 void Compiler::patchJump(int index) {
-    int to = getChunk()->bytecode.size() - 1;
+    int to = getChunk()->bytecode.size();
     if (to > UINT16_MAX) {
         error("Condition jump too large");
         return;
     }
 
-    getChunk()->bytecode[index] = (u8)((to >> 8) & 0xff);
+    getChunk()->bytecode[index] = (u8) ((to >> 8) & 0xff);
     getChunk()->bytecode[index + 1] = (u8)(to & 0xff);
 }
 
@@ -277,11 +277,11 @@ void Compiler::printStmt(Ptr<PrintStmt>& stmt) {
 void Compiler::ifStmt(Ptr<IfStmt>& stmt) {
     expression(stmt->condition);
     int elseJump = emitJump(OpJumpIfFalse);
-    emitJump(OpPop);
+    emitByte(OpPop, 1);
     body(stmt->body);
     int endJump = emitJump(OpJump);
     patchJump(elseJump);
-    emitByte(OpPop);
+    emitByte(OpPop, 1);
     body(stmt->orelse);
     patchJump(endJump);
 }
