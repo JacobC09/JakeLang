@@ -11,56 +11,12 @@ Chunk Compiler::compile(Ast& ast) {
     return chunkData->chunk;
 }
 
-Chunk* Compiler::getChunk() {
-    return &chunkData->chunk;
-}
-
 bool Compiler::failed() {
     return hadError;
 }
 
-void Compiler::error(std::string msg) {
-    if (hadError) return;
-
-    hadError = true;
-    printf("Error during compilation\n");
-    printf("    %s\n", msg.c_str());
-}
-
-void Compiler::emitByte(u8 value) {
-    getChunk()->bytecode.push_back(value);
-}
-
-void Compiler::emitByte(u16 value) {
-    emitByte((u8)((value >> 8) & 0xff));
-    emitByte((u8)(value & 0xff));
-}
-
-int Compiler::emitJump(u8 jump) {
-    emitByte(jump, 0, 0);
-    return getChunk()->bytecode.size() - 2;
-}
-
-void Compiler::patchJump(int index) {
-    int to = getChunk()->bytecode.size();
-    if (to > UINT16_MAX) {
-        error("Condition jump too large");
-        return;
-    }
-
-    getChunk()->bytecode[index] = (u8) ((to >> 8) & 0xff);
-    getChunk()->bytecode[index + 1] = (u8)(to & 0xff);
-}
-
-template <typename First>
-void Compiler::emitByte(First value) {
-    emitByte((u8)value);
-}
-
-template <typename First, typename... Rest>
-void Compiler::emitByte(First byte, Rest... rest) {
-    emitByte(byte);
-    emitByte(rest...);
+Chunk* Compiler::getChunk() {
+    return &chunkData->chunk;
 }
 
 void Compiler::newChunk() {
@@ -73,6 +29,82 @@ void Compiler::newChunk() {
 
 void Compiler::endChunk() {
     emitByte(OpReturn);
+}
+
+void Compiler::error(std::string msg) {
+    if (hadError) return;
+
+    hadError = true;
+    printf("Error during compilation\n");
+    printf("    %s\n", msg.c_str());
+}
+
+int Compiler::makeNumberConstant(double value) {
+    auto& pool = getChunk()->constants.numbers;
+    auto it = std::find(pool.begin(), pool.end(), value);
+    int index;
+    if (it == pool.end()) {
+        pool.push_back(value);
+        index = pool.size() - 1;
+    } else {
+        index = std::distance(pool.begin(), it);
+    }
+
+    if (index > UINT8_MAX) {
+        error("Too many constants in pool");
+    }
+
+    return index;
+}
+
+int Compiler::makeNameConstant(std::string value) {
+    auto& pool = getChunk()->constants.names;
+    auto it = std::find(pool.begin(), pool.end(), value);
+    int index;
+    if (it == pool.end()) {
+        pool.push_back(value);
+        index = (signed)pool.size() - 1;
+    } else {
+        index = std::distance(pool.begin(), it);
+    }
+
+    if (index > UINT8_MAX) {
+        error("Too many constants in pool");
+    }
+
+    return index;
+}
+
+void Compiler::addLocal(std::string name) {
+    for (auto& local : chunkData->locals) {
+        if (local.name == name && local.depth == chunkData->scopeDepth) {
+            error(formatStr("Already a local called '%s'", name.c_str()));
+            break;
+        }
+    }
+
+    chunkData->locals.push_back(Local{
+        name, chunkData->scopeDepth});
+}
+
+int Compiler::findLocal(std::string name) {
+    for (int index = 0; index < (signed)chunkData->locals.size(); index++) {
+        if (chunkData->locals[index].name == name) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+void Compiler::beginScope() {
+    chunkData->scopeDepth++;
+}
+
+void Compiler::endScope() {
+    chunkData->scopeDepth++;
+    emitByte(OpPop, (u8)chunkData->locals.size());
+    chunkData->locals.clear();
 }
 
 void Compiler::body(std::vector<Stmt>& stmts) {
@@ -133,6 +165,60 @@ void Compiler::body(std::vector<Stmt>& stmts) {
     }
 }
 
+void Compiler::assignment(Ptr<AssignmentExpr>& assignment) {
+    expression(assignment->expr);
+
+    int arg = findLocal(assignment->target.value);
+    if (arg == -1) {
+        emitByte(OpSetGlobal);
+        emitByte(makeNameConstant(assignment->target.value));
+    } else {
+        emitByte(OpSetLocal, arg);
+    }
+}
+
+void Compiler::printStmt(Ptr<PrintStmt>& stmt) {
+    for (auto& expr : stmt->exprs) {
+        expression(expr);
+    }
+    emitByte(OpPrint, stmt->exprs.size());
+}
+
+void Compiler::ifStmt(Ptr<IfStmt>& stmt) {
+    expression(stmt->condition);
+    int elseJump = emitJump(OpJumpIfFalse);
+    emitByte(OpPop, 1);
+    body(stmt->body);
+    int endJump = emitJump(OpJump);
+    patchJump(elseJump);
+    emitByte(OpPop, 1);
+    body(stmt->orelse);
+    patchJump(endJump);
+}
+
+void Compiler::loopBlock(Ptr<LoopBlock>& stmt) {
+}
+
+void Compiler::whileLoop(Ptr<WhileLoop>& stmt) {
+}
+
+void Compiler::forLoop(Ptr<ForLoop>& stmt) {
+}
+
+void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
+}
+
+void Compiler::varDeclaration(Ptr<VarDeclaration>& stmt) {
+    expression(stmt->expr);
+
+    if (chunkData->scopeDepth == 0) {
+        emitByte(OpDefineGlobal);
+        emitByte(makeNameConstant(stmt->name.value));
+        return;
+    }
+
+    addLocal(stmt->name.value);
+}
 void Compiler::expression(Expr expr) {
     switch (expr.which()) {
         case Expr::which<NumLiteral>(): {
@@ -244,18 +330,6 @@ void Compiler::expression(Expr expr) {
     }
 }
 
-void Compiler::assignment(Ptr<AssignmentExpr>& assignment) {
-    expression(assignment->expr);
-
-    int arg = findLocal(assignment->target.value);
-    if (arg == -1) {
-        emitByte(OpSetGlobal);
-        emitByte(makeNameConstant(assignment->target.value));
-    } else {
-        emitByte(OpSetLocal, arg);
-    }
-}
-
 void Compiler::identifier(Identifier& id) {
     int arg = findLocal(id.value);
 
@@ -267,112 +341,38 @@ void Compiler::identifier(Identifier& id) {
     }
 }
 
-void Compiler::printStmt(Ptr<PrintStmt>& stmt) {
-    for (auto& expr : stmt->exprs) {
-        expression(expr);
-    }
-    emitByte(OpPrint, stmt->exprs.size());
+void Compiler::emitByte(u8 value) {
+    getChunk()->bytecode.push_back(value);
 }
 
-void Compiler::ifStmt(Ptr<IfStmt>& stmt) {
-    expression(stmt->condition);
-    int elseJump = emitJump(OpJumpIfFalse);
-    emitByte(OpPop, 1);
-    body(stmt->body);
-    int endJump = emitJump(OpJump);
-    patchJump(elseJump);
-    emitByte(OpPop, 1);
-    body(stmt->orelse);
-    patchJump(endJump);
+void Compiler::emitByte(u16 value) {
+    emitByte((u8)((value >> 8) & 0xff));
+    emitByte((u8)(value & 0xff));
 }
 
-void Compiler::loopBlock(Ptr<LoopBlock>& stmt) {
+int Compiler::emitJump(u8 jump) {
+    emitByte(jump, 0, 0);
+    return getChunk()->bytecode.size() - 2;
 }
 
-void Compiler::whileLoop(Ptr<WhileLoop>& stmt) {
-}
-
-void Compiler::forLoop(Ptr<ForLoop>& stmt) {
-}
-void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
-}
-
-void Compiler::varDeclaration(Ptr<VarDeclaration>& stmt) {
-    expression(stmt->expr);
-
-    if (chunkData->scopeDepth == 0) {
-        emitByte(OpDefineGlobal);
-        emitByte(makeNameConstant(stmt->name.value));
+void Compiler::patchJump(int index) {
+    int to = getChunk()->bytecode.size();
+    if (to > UINT16_MAX) {
+        error("Condition jump too large");
         return;
     }
 
-    addLocal(stmt->name.value);
+    getChunk()->bytecode[index] = (u8)((to >> 8) & 0xff);
+    getChunk()->bytecode[index + 1] = (u8)(to & 0xff);
 }
 
-int Compiler::makeNumberConstant(double value) {
-    auto& pool = getChunk()->constants.numbers;
-    auto it = std::find(pool.begin(), pool.end(), value);
-    int index;
-    if (it == pool.end()) {
-        pool.push_back(value);
-        index = pool.size() - 1;
-    } else {
-        index = std::distance(pool.begin(), it);
-    }
-
-    if (index > UINT8_MAX) {
-        error("Too many constants in pool");
-    }
-
-    return index;
+template <typename First>
+void Compiler::emitByte(First value) {
+    emitByte((u8)value);
 }
 
-int Compiler::makeNameConstant(std::string value) {
-    auto& pool = getChunk()->constants.names;
-    auto it = std::find(pool.begin(), pool.end(), value);
-    int index;
-    if (it == pool.end()) {
-        pool.push_back(value);
-        index = (signed)pool.size() - 1;
-    } else {
-        index = std::distance(pool.begin(), it);
-    }
-
-    if (index > UINT8_MAX) {
-        error("Too many constants in pool");
-    }
-
-    return index;
-}
-
-void Compiler::addLocal(std::string name) {
-    for (auto& local : chunkData->locals) {
-        if (local.name == name && local.depth == chunkData->scopeDepth) {
-            error(formatStr("Already a local called '%s'", name.c_str()));
-            break;
-        }
-    }
-
-    chunkData->locals.push_back(Local{
-        name, chunkData->scopeDepth});
-}
-
-int Compiler::findLocal(std::string name) {
-    for (int index = 0; index < (signed)chunkData->locals.size(); index++) {
-        if (chunkData->locals[index].name == name) {
-            return index;
-        }
-    }
-
-    return -1;
-}
-
-void Compiler::beginScope() {
-    chunkData->scopeDepth++;
-}
-
-void Compiler::endScope() {
-    chunkData->scopeDepth++;
-    emitByte(OpPop, (u8)chunkData->locals.size());
-    chunkData->locals.clear();
+template <typename First, typename... Rest>
+void Compiler::emitByte(First byte, Rest... rest) {
+    emitByte(byte);
+    emitByte(rest...);
 }

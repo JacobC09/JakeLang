@@ -44,9 +44,9 @@ public:
 
 private:
     Chunk* getChunk();
-    void error(std::string msg);
     void newChunk();
     void endChunk();
+    void error(std::string msg);
     int makeNumberConstant(double value);
     int makeNameConstant(std::string value);
     void addLocal(std::string name);
@@ -54,9 +54,7 @@ private:
     void beginScope();
     void endScope();
     void body(std::vector<Stmt>& stmts);
-    void expression(Expr expr);
     void assignment(Ptr<AssignmentExpr>& assignment);
-    void identifier(Identifier& id);
     void printStmt(Ptr<PrintStmt>& stmt);
     void ifStmt(Ptr<IfStmt>& stmt);
     void loopBlock(Ptr<LoopBlock>& stmt);
@@ -64,6 +62,8 @@ private:
     void forLoop(Ptr<ForLoop>& stmt);
     void funcDeclaration(Ptr<FuncDeclaration>& stmt);
     void varDeclaration(Ptr<VarDeclaration>& stmt);
+    void expression(Expr expr);
+    void identifier(Identifier& id);
 
     void emitByte(u8 value);
     void emitByte(u16 value);
