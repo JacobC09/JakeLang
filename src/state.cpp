@@ -1,5 +1,4 @@
 #include "state.h"
-
 #include "ast.h"
 #include "compiler.h"
 #include "parser.h"
@@ -26,5 +25,10 @@ Result State::run(std::string source) {
 
     printChunk(chunk);
 
+    Shared<Module> mod = std::make_shared<Module>(chunk);
+
     return Result{ExitCode::Success};
+}
+Result State::run(Module mod) {
+    return Result();
 };

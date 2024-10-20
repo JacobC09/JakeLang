@@ -7,8 +7,12 @@ Chunk Compiler::compile(Ast& ast) {
     newChunk();
     chunkData->global = true;
     body(ast.body);
-    endChunk();
-    return chunkData->chunk;
+
+    if (!ast.body.size() || ast.body.back().which() != Stmt::which<Ptr<ReturnStmt>>()) {
+        emitByte(OpNone, OpReturn);
+    }
+
+    return endChunk();
 }
 
 bool Compiler::failed() {
@@ -27,8 +31,23 @@ void Compiler::newChunk() {
     chunkData->global = false;
 }
 
-void Compiler::endChunk() {
-    emitByte(OpReturn);
+Chunk Compiler::endChunk() {
+    Chunk chunk = chunkData->chunk;
+    chunkData = std::move(chunkData->enclosing);
+    return chunk;
+}
+
+void Compiler::newLoop() {
+    std::unique_ptr<LoopData> enclosing = std::move(loopData);
+    loopData = std::make_unique<LoopData>();
+    loopData->start = (signed)getChunk()->bytecode.size();
+}
+
+void Compiler::endLoop() {
+    for (int where : loopData->breaks) {
+        patchJump(where);
+    }
+    loopData = std::move(loopData->enclosing);
 }
 
 void Compiler::error(std::string msg) {
@@ -43,6 +62,7 @@ int Compiler::makeNumberConstant(double value) {
     auto& pool = getChunk()->constants.numbers;
     auto it = std::find(pool.begin(), pool.end(), value);
     int index;
+
     if (it == pool.end()) {
         pool.push_back(value);
         index = pool.size() - 1;
@@ -79,19 +99,59 @@ void Compiler::addLocal(std::string name) {
     for (auto& local : chunkData->locals) {
         if (local.name == name && local.depth == chunkData->scopeDepth) {
             error(formatStr("Already a local called '%s'", name.c_str()));
-            break;
+            return;
         }
     }
 
-    chunkData->locals.push_back(Local{
-        name, chunkData->scopeDepth});
+    if (chunkData->locals.size() > UINT8_MAX) {
+        error("Too many locals in scope");
+        return;
+    }
+
+    chunkData->locals.push_back(Local{name, chunkData->scopeDepth});
 }
 
-int Compiler::findLocal(std::string name) {
-    for (int index = 0; index < (signed)chunkData->locals.size(); index++) {
-        if (chunkData->locals[index].name == name) {
+int Compiler::addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool inEnclosingChunk) {
+    for (int i = 0; i < (signed)chunk->upvalues.size(); i++) {
+        auto& upvalue = chunk->upvalues[i];
+        if (upvalue.index == index && upvalue.inEnclosingChunk == inEnclosingChunk) {
+            return i;
+        }
+    }
+    
+    int count = chunk->upvalues.size();
+    if (count > UINT8_MAX) {
+        error("Too many captured locals in scope");
+        return -1;
+    }
+
+    chunk->upvalues.push_back(UpValue {index, inEnclosingChunk});
+    return count;
+}
+
+int Compiler::findLocal(std::unique_ptr<ChunkData>& chunk, std::string name) {
+    for (int index = 0; index < (signed)chunk->locals.size(); index++) {
+        if (chunk->locals[index].name == name) {
             return index;
         }
+    }
+
+    return -1;
+}
+
+int Compiler::findUpValue(std::unique_ptr<ChunkData>& chunk, std::string name) {
+    if (chunk->enclosing == nullptr) {
+        return -1;
+    }
+
+    int local = findLocal(chunkData->enclosing, name);
+    if (local != -1) {
+        return addUpValue(chunk, local, true);
+    }
+
+    int upvalue = findUpValue(chunk->enclosing, name);
+    if (upvalue != -1) {
+        return addUpValue(chunk, upvalue, false);
     }
 
     return -1;
@@ -148,6 +208,16 @@ void Compiler::body(std::vector<Stmt>& stmts) {
                 break;
             }
 
+            case Stmt::which<BreakStmt>(): {
+                breakStmt();
+                break;
+            }
+
+            case Stmt::which<ContinueStmt>(): {
+                continueStmt();
+                break;
+            }
+
             case Stmt::which<Ptr<FuncDeclaration>>(): {
                 funcDeclaration(stmt.get<Ptr<FuncDeclaration>>());
                 break;
@@ -168,13 +238,20 @@ void Compiler::body(std::vector<Stmt>& stmts) {
 void Compiler::assignment(Ptr<AssignmentExpr>& assignment) {
     expression(assignment->expr);
 
-    int arg = findLocal(assignment->target.value);
-    if (arg == -1) {
-        emitByte(OpSetGlobal);
-        emitByte(makeNameConstant(assignment->target.value));
-    } else {
-        emitByte(OpSetLocal, arg);
+    int local = findLocal(chunkData, assignment->target.value);
+    if (local != -1) {
+        emitByte(OpSetLocal, local);
+        return;
     }
+
+    int upvalue = findUpValue(chunkData, assignment->target.value);
+    if (upvalue != -1) {
+        emitByte(OpSetUpValue, upvalue);
+        return;
+    }
+
+    emitByte(OpSetGlobal);
+    emitByte(makeNameConstant(assignment->target.value));
 }
 
 void Compiler::printStmt(Ptr<PrintStmt>& stmt) {
@@ -186,26 +263,79 @@ void Compiler::printStmt(Ptr<PrintStmt>& stmt) {
 
 void Compiler::ifStmt(Ptr<IfStmt>& stmt) {
     expression(stmt->condition);
-    int elseJump = emitJump(OpJumpIfFalse);
-    emitByte(OpPop, 1);
+    int elseJump = emitJumpForwards(OpJumpPopIfFalse);
     body(stmt->body);
-    int endJump = emitJump(OpJump);
-    patchJump(elseJump);
-    emitByte(OpPop, 1);
-    body(stmt->orelse);
-    patchJump(endJump);
+
+    if (stmt->orelse.size()) {
+        int endJump = emitJumpForwards(OpJump);
+        patchJump(elseJump);
+        body(stmt->orelse);
+        patchJump(endJump);
+    } else {
+        patchJump(elseJump);
+    }
 }
 
 void Compiler::loopBlock(Ptr<LoopBlock>& stmt) {
+    newLoop();
+    int start = (signed)getChunk()->bytecode.size();
+    body(stmt->body);
+    emitJumpBackwards(OpJumpBack, start);
+    endLoop();
 }
 
 void Compiler::whileLoop(Ptr<WhileLoop>& stmt) {
+    newLoop();
+    int start = (signed)getChunk()->bytecode.size();
+    expression(stmt->condition);
+    int endJump = emitJumpForwards(OpJumpPopIfFalse);
+    body(stmt->body);
+    emitJumpBackwards(OpJumpBack, start);
+    patchJump(endJump);
+    endLoop();
 }
 
 void Compiler::forLoop(Ptr<ForLoop>& stmt) {
+    error("For loops are not supported yet");
+}
+
+void Compiler::breakStmt() {
+    if (loopData == nullptr) {
+        error("Cannot use break statement outside of loop");
+        return;
+    }
+
+    loopData->breaks.push_back(emitJumpForwards(OpJump));
+}
+
+void Compiler::continueStmt() {
+    if (loopData == nullptr) {
+        error("Cannot use continue statement outside of loop");
+        return;
+    }
+
+    emitJumpBackwards(OpJumpBack, loopData->start);
 }
 
 void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
+    emitByte(OpFunction, (signed)getChunk()->constants.prototypes.size());
+    newChunk();
+    beginScope();
+
+    for (auto& arg : stmt->args) {
+        addLocal(arg.value);
+    }
+
+    body(stmt->body);
+    endScope();
+
+    Prototype prot = {
+        stmt->name.value,
+        (signed)stmt->args.size(),
+        endChunk(),
+    };
+
+    getChunk()->constants.prototypes.push_back(prot);
 }
 
 void Compiler::varDeclaration(Ptr<VarDeclaration>& stmt) {
@@ -219,11 +349,17 @@ void Compiler::varDeclaration(Ptr<VarDeclaration>& stmt) {
 
     addLocal(stmt->name.value);
 }
+
 void Compiler::expression(Expr expr) {
     switch (expr.which()) {
         case Expr::which<NumLiteral>(): {
-            int index = makeNumberConstant(expr.get<NumLiteral>().value);
-            emitByte(OpConstantNumber, (u8)index);
+            double value = expr.get<NumLiteral>().value;
+            if (value > UINT8_MAX || value < 0) {
+                int index = makeNumberConstant(value);
+                emitByte(OpConstantNumber, (u8)index);
+            } else {
+                emitByte(OpByteNumber, (u8)value);
+            }
             break;
         }
 
@@ -301,7 +437,6 @@ void Compiler::expression(Expr expr) {
 
         case Expr::which<Ptr<UnaryExpr>>(): {
             auto unaryExpr = expr.get<Ptr<UnaryExpr>>();
-
             expression(unaryExpr->expr);
 
             switch (unaryExpr->op) {
@@ -313,6 +448,8 @@ void Compiler::expression(Expr expr) {
                     emitByte(OpNot);
                     break;
             }
+
+            break;
         }
 
         case Expr::which<Ptr<BlockExpr>>(): {
@@ -331,14 +468,20 @@ void Compiler::expression(Expr expr) {
 }
 
 void Compiler::identifier(Identifier& id) {
-    int arg = findLocal(id.value);
-
-    if (arg == -1) {
-        emitByte(OpGetGlobal);
-        emitByte(makeNameConstant(id.value));
-    } else {
-        emitByte(OpGetLocal, arg);
+    int local = findLocal(chunkData, id.value);
+    if (local != -1) {
+        emitByte(OpGetLocal, local);
+        return;
     }
+
+    int upvalue = findUpValue(chunkData, id.value);
+    if (upvalue != -1) {
+        emitByte(OpGetUpValue, upvalue);
+        return;
+    }
+
+    emitByte(OpGetGlobal);
+    emitByte(makeNameConstant(id.value));
 }
 
 void Compiler::emitByte(u8 value) {
@@ -350,20 +493,30 @@ void Compiler::emitByte(u16 value) {
     emitByte((u8)(value & 0xff));
 }
 
-int Compiler::emitJump(u8 jump) {
+void Compiler::emitJumpBackwards(u8 jump, int where) {
+    int distance = getChunk()->bytecode.size() - where + 1;
+    if (distance > UINT16_MAX) {
+        error("Condition jump too large");
+        return;
+    }
+
+    emitByte(jump, (u16)distance);
+}
+
+int Compiler::emitJumpForwards(u8 jump) {
     emitByte(jump, 0, 0);
     return getChunk()->bytecode.size() - 2;
 }
 
 void Compiler::patchJump(int index) {
-    int to = getChunk()->bytecode.size();
-    if (to > UINT16_MAX) {
+    int distance = getChunk()->bytecode.size() - index - 2;
+    if (distance > UINT16_MAX) {
         error("Condition jump too large");
         return;
     }
 
-    getChunk()->bytecode[index] = (u8)((to >> 8) & 0xff);
-    getChunk()->bytecode[index + 1] = (u8)(to & 0xff);
+    getChunk()->bytecode[index] = (u8)((distance >> 8) & 0xff);
+    getChunk()->bytecode[index + 1] = (u8)(distance & 0xff);
 }
 
 template <typename First>

@@ -4,6 +4,7 @@
 #define MAPBOX_VARIANT_OPTIMIZE_FOR_SPEED
 
 #include <memory>
+
 #include "mapbox/variant.hpp"
 
 template <typename... Types>
@@ -12,73 +13,73 @@ using Variant = mapbox::util::variant<Types...>;
 template <typename T>
 class Ptr {
 public:
-    Ptr(T &&obj) : _impl(new T(std::move(obj))) {}
-    Ptr(const T &obj) : _impl(new T(obj)) {}
+    // Constructors
+    Ptr(T&& obj) : _impl(std::make_unique<T>(std::move(obj))) {}
+    Ptr(const T& obj) : _impl(std::make_unique<T>(obj)) {}
 
-    Ptr(const Ptr &other) : Ptr(*other._impl) {}
-    Ptr &operator=(const Ptr &other) {
-        *_impl = *other._impl;
+    // Implicit conversion from std::unique_ptr
+    Ptr(std::unique_ptr<T>&& uniqueObj) : _impl(std::move(uniqueObj)) {}
+
+    Ptr(const Ptr& other) : _impl(std::make_unique<T>(*other._impl)) {}
+    Ptr(Ptr&& other) noexcept = default;
+
+    // Assignment operators
+    Ptr& operator=(const Ptr& other) {
+        if (this != &other) {
+            *_impl = *other._impl;
+        }
         return *this;
     }
-    
-    ~Ptr() = default;
 
-    T &operator*() { return *_impl; }
-    const T &operator*() const { return *_impl; }
+    Ptr& operator=(Ptr&& other) noexcept = default;
 
-    T *operator->() { return _impl.get(); }
-    const T *operator->() const { return _impl.get(); }
-
-    Ptr(Ptr &&other) : Ptr(std::move(*other._impl)) {}
-    Ptr &operator=(Ptr &&other)
-    {
-        *_impl = std::move(*other._impl);
+    // Assigment operator
+    Ptr& operator=(std::unique_ptr<T>&& uniqueObj) {
+        _impl = std::move(uniqueObj);
         return *this;
     }
+
+    // Access operators
+    T& operator*() { return *_impl; }
+    const T& operator*() const { return *_impl; }
+
+    T* operator->() { return _impl.get(); }
+    const T* operator->() const { return _impl.get(); }
 
 private:
     std::unique_ptr<T> _impl;
 };
 
-
 template <typename T>
 class Shared {
 public:
-    // Constructor that takes an rvalue (T&&) and moves it into a shared_ptr
-    Shared(T &&obj) : _impl(std::make_shared<T>(std::move(obj))) {}
+    // Constructors
+    Shared(T&& obj) : _impl(std::make_shared<T>(std::move(obj))) {}
+    Shared(const T& obj) : _impl(std::make_shared<T>(obj)) {}
 
-    // Constructor that takes a const reference to T and copies it
-    Shared(const T &obj) : _impl(std::make_shared<T>(obj)) {}
+    // Implicit conversion from std::shared_ptr
+    Shared(const std::shared_ptr<T>& sharedObj) : _impl(sharedObj) {}
 
-    // Copy constructor
-    Shared(const Shared &other) : _impl(other._impl) {}
+    Shared(const Shared& other) = default;
+    Shared(Shared&& other) noexcept = default;
 
-    // Copy assignment operator
-    Shared &operator=(const Shared &other) {
-        _impl = other._impl; // Shared ownership; no deep copy needed
+    // Assignment operators
+    Shared& operator=(const Shared& other) = default;
+    Shared& operator=(Shared&& other) noexcept = default;
+
+    // Assignment operator
+    Shared& operator=(const std::shared_ptr<T>& sharedObj) {
+        _impl = sharedObj;
         return *this;
     }
 
-    // Move constructor
-    Shared(Shared &&other) noexcept : _impl(std::move(other._impl)) {}
+    // Access operators
+    T& operator*() { return *_impl; }
+    const T& operator*() const { return *_impl; }
 
-    // Move assignment operator
-    Shared &operator=(Shared &&other) noexcept {
-        _impl = std::move(other._impl);
-        return *this;
-    }
-
-    // Default destructor (shared_ptr will automatically handle deletion)
-    ~Shared() = default;
-
-    // Dereference operator to access the managed object
-    T &operator*() { return *_impl; }
-    const T &operator*() const { return *_impl; }
-
-    // Arrow operator to access the object's members
-    T *operator->() { return _impl.get(); }
-    const T *operator->() const { return _impl.get(); }
+    T* operator->() { return _impl.get(); }
+    const T* operator->() const { return _impl.get(); }
 
 private:
-    std::shared_ptr<T> _impl; // Use shared_ptr instead of unique_ptr
+    std::shared_ptr<T> _impl;
 };

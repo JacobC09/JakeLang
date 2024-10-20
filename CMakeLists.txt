@@ -14,6 +14,7 @@ add_executable(jake-lang
     "src/util.cpp"
     "src/print.cpp"
     "src/compiler.cpp"
+    "src/interpreter.cpp"
 )
 
 # ---------- Linker Config ---------- #

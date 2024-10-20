@@ -1,7 +1,7 @@
 #pragma once
 #include "scanner.h"
 #include "ast.h"
-#include "value.h"
+#include "compiler.h"
 
 void printToken(const Token& token);
 void printAst(const Ast& ast);

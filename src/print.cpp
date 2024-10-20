@@ -1,6 +1,7 @@
 #include "ast.h"
 #include "print.h"
 #include "debug.h"
+#include "compiler.h"
 
 void printStmt(const Stmt& stmt, int indent);
 
@@ -301,9 +302,9 @@ int constantInstruction(const char* name, int index, const Chunk& chunk, bool is
     } else {
         double val = chunk.constants.numbers[constant];
         if (val == (int) val) {
-            printf("%-16s %d (%d)\n", name, (int) val, constant);
+            printf("%-16s %4d (%d)\n", name, (int) val, constant);
         } else {
-            printf("%-16s %lf (%d)\n", name, val, constant);
+            printf("%-16s %4lf (%d)\n", name, val, constant);
         }
     }
 
@@ -316,10 +317,19 @@ int byteInstruction(const char* name, int index, const Chunk& chunk) {
     return index + 2;
 }
 
-int shortInstruction(const char* name, int index, const Chunk& chunk) {
+int jumpInstruction(const char* name, int index, const Chunk& chunk, bool back=false) {
     int val = chunk.bytecode[index + 1] << 8 | chunk.bytecode[index + 2];
-    printf("%-16s %4d\n", name, val);
+    printf("%-16s %4d to %d\n", name, val, index + (back ? -val : val + 2) + 1);
     return index + 3;
+}
+
+int functionInstruction(const char* name, int index, const Chunk& chunk) {
+    int prototypeIndex = chunk.bytecode[index + 1];
+    const Prototype& prototype = chunk.constants.prototypes[prototypeIndex];
+    printf("%-16s %4d, argc: %d\n", name, prototypeIndex, prototype.argc);
+
+    printChunk(prototype.chunk, prototype.name);
+    return index + 2;
 }
 
 int disassembleInstruction(const Chunk& chunk, int index) {
@@ -337,6 +347,9 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             break;
         case OpConstantName:
             index = constantInstruction("Name Constant", index, chunk, true);
+            break;
+        case OpByteNumber:
+            index = byteInstruction("Byte Number", index, chunk);
             break;
         case OpTrue:
             index = simpleInstruction("True", index);
@@ -402,25 +415,28 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             index = byteInstruction("SetLocal", index, chunk);
             break;
         case OpGetUpValue:
-            index = simpleInstruction("GetUpValue", index);
+            index = byteInstruction("GetUpValue", index, chunk);
             break;
         case OpSetUpValue:
-            index = simpleInstruction("SetUpValue", index);
+            index = byteInstruction("SetUpValue", index, chunk);
             break;
         case OpCloseUpValue:
             index = simpleInstruction("CloseUpValue", index);
             break;
         case OpJump:
-            index = shortInstruction("Jump", index, chunk);
+            index = jumpInstruction("Jump", index, chunk);
             break;
         case OpJumpBack:
-            index = shortInstruction("JumpBack", index, chunk);
+            index = jumpInstruction("JumpBack", index, chunk, true);
             break;
-        case OpJumpIfTrue:
-            index = shortInstruction("JumpIfTrue", index, chunk);
+        case OpJumpPopIfTrue:
+            index = jumpInstruction("JumpIfTrue", index, chunk);
             break;
-        case OpJumpIfFalse:
-            index = shortInstruction("JumpIfFalse", index, chunk);
+        case OpJumpPopIfFalse:
+            index = jumpInstruction("JumpIfFalse", index, chunk);
+            break;
+        case OpFunction:
+            index = functionInstruction("Function", index, chunk);
             break;
         case OpCall:
             index = simpleInstruction("Call", index);

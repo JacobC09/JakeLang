@@ -451,7 +451,7 @@ Stmt Parser::funcDeclaration() {
     consume(TokenType::LeftParen, "Expected '(' after function name");
 
     std::vector<Identifier> args;
-    while (!isFinished()) {
+    while (!isFinished() && !check(TokenType::RightParen)) {
         Expr expr = expression();
         if (expr.which() != Expr::which<Identifier>()) {
             errorAt(prev, "Expected argument identifiers");

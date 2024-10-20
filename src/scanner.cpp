@@ -135,7 +135,13 @@ Token Scanner::scanIdentifer() {
 
     Token token = makeToken(TokenType::Identifier);
 
-    if (token.value.compare("print") == 0) {
+    if (token.value.compare("true") == 0) {
+        token.type = TokenType::True;
+    } else if (token.value.compare("false") == 0) {
+        token.type = TokenType::False;
+    } else if (token.value.compare("none") == 0) {
+        token.type = TokenType::None;
+    } else if (token.value.compare("print") == 0) {
         token.type = TokenType::Print;
     } else if (token.value.compare("if") == 0) {
         token.type = TokenType::If;

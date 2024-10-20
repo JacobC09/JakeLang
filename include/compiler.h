@@ -26,13 +26,24 @@ struct Local {
     int depth;
 };
 
+struct UpValue {
+    u8 index;
+    bool inEnclosingChunk;
+};
+
 struct ChunkData {
-    ChunkData() = default;
+    std::unique_ptr<struct ChunkData> enclosing;
     int scopeDepth;
     bool global;
     Chunk chunk;
     std::vector<Local> locals;
-    std::unique_ptr<struct ChunkData> enclosing;
+    std::vector<UpValue> upvalues;
+};
+
+struct LoopData {
+    std::unique_ptr<struct LoopData> enclosing;
+    int start;
+    std::vector<int> breaks;
 };
 
 class Compiler {
@@ -45,12 +56,16 @@ public:
 private:
     Chunk* getChunk();
     void newChunk();
-    void endChunk();
+    Chunk endChunk();
+    void newLoop();
+    void endLoop();
     void error(std::string msg);
     int makeNumberConstant(double value);
     int makeNameConstant(std::string value);
     void addLocal(std::string name);
-    int findLocal(std::string name);
+    int addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool inEnclosingChunk);
+    int findLocal(std::unique_ptr<ChunkData>& chunk, std::string name);
+    int findUpValue(std::unique_ptr<ChunkData>& chunk, std::string name);
     void beginScope();
     void endScope();
     void body(std::vector<Stmt>& stmts);
@@ -60,6 +75,8 @@ private:
     void loopBlock(Ptr<LoopBlock>& stmt);
     void whileLoop(Ptr<WhileLoop>& stmt);
     void forLoop(Ptr<ForLoop>& stmt);
+    void breakStmt();
+    void continueStmt();
     void funcDeclaration(Ptr<FuncDeclaration>& stmt);
     void varDeclaration(Ptr<VarDeclaration>& stmt);
     void expression(Expr expr);
@@ -72,10 +89,12 @@ private:
     template<typename First, typename ... Rest>
     void emitByte(First byte, Rest ... rest);
     
-    int emitJump(u8 jump);
+    void emitJumpBackwards(u8 jump, int where);
+    int emitJumpForwards(u8 jump);
     void patchJump(int index);
 
     std::unique_ptr<ChunkData> chunkData;
+    std::unique_ptr<LoopData> loopData;
 
     bool hadError;
 };
@@ -85,6 +104,7 @@ enum Instructions : u8 {
     OpReturn,
     OpConstantName,
     OpConstantNumber,
+    OpByteNumber,
     OpTrue,
     OpFalse,
     OpNone,
@@ -106,13 +126,16 @@ enum Instructions : u8 {
     OpSetGlobal,
     OpGetLocal,
     OpSetLocal,
+    OpJump,
+    OpJumpBack,
+    OpJumpPopIfTrue,
+    OpJumpPopIfFalse,
+    
+    OpFunction,
+    
     OpGetUpValue,
     OpSetUpValue,
     OpCloseUpValue,
-    OpJump,
-    OpJumpBack,
-    OpJumpIfTrue,
-    OpJumpIfFalse,
     OpCall,
     OpClosure,
     OpClass,
