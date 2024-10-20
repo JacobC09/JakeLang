@@ -98,7 +98,7 @@ int Compiler::makeNameConstant(std::string value) {
 void Compiler::addLocal(std::string name) {
     for (auto& local : chunkData->locals) {
         if (local.name == name && local.depth == chunkData->scopeDepth) {
-            error(formatStr("Already a local called '%s'", name.c_str()));
+            error(formatStr("Already a local called '%s'", name));
             return;
         }
     }

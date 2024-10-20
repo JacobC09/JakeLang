@@ -213,7 +213,7 @@ Result Interpreter::run() {
                 auto value = frame()->mod.globals.find(name);
 
                 if (value == frame()->mod.globals.end()) {
-                    error(formatStr("Couldn't find global named %s in current module", name.c_str()));
+                    error(formatStr("Couldn't find global named %s in current module", name));
                     return Result {1};
                 }
 
@@ -226,7 +226,7 @@ Result Interpreter::run() {
                 auto value = frame()->mod.globals.find(name);
 
                 if (value == frame()->mod.globals.end()) {
-                    error(formatStr("Couldn't find global named %s in current module", name.c_str()));
+                    error(formatStr("Couldn't find global named %s in current module", name));
                     return Result {1};
                 }
 

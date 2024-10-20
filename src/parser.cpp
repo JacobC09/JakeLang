@@ -26,7 +26,7 @@ void Parser::advance() {
     cur = scanner.nextToken();
 
     if (cur.type == TokenType::Error) {
-        errorAt(cur, formatStr("Invalid Token: %s", std::string(cur.value).c_str()));
+        errorAt(cur, formatStr("Invalid Token: %s", std::string(cur.value)));
     }
 }
 

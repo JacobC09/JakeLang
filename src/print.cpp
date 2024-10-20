@@ -512,25 +512,25 @@ std::string getValueStr(const Value& value) {
             return formatStr("Number{%d}", value.get<Number>());
         }
         case Value::which<String>(): {
-            return formatStr("String{%s}", value.get<String>().c_str());
+            return formatStr("String{%s}", value.get<String>());
         }
         case Value::which<Boolean>(): {
-            return formatStr("Boolean{%s}", value.get<bool>() ? "true" : "false");
+            return formatStr("Boolean{%p}", value.get<bool>() ? "true" : "false");
         }
         case Value::which<None>(): {
             return "None{}";
         }
         case Value::which<Shared<Upvalue>>(): {
             auto& val = value.get<Shared<Upvalue>>();
-            return formatStr("Upvalue{%s}", getValueStr(*val->loc).c_str());
+            return formatStr("Upvalue{%s}", getValueStr(*val->loc));
         }
         case Value::which<Shared<Function>>(): {
             auto val = value.get<Shared<Function>>();
-            return formatStr("Function{%s, argc: %d}", val->prot.name.c_str(), val->prot.argc);
+            return formatStr("Function{%s, argc: %d}", val->prot.name, val->prot.argc);
         }
         case Value::which<Shared<Module>>(): {
             auto& val = value.get<Shared<Module>>();
-            return formatStr("Module{%s}", val->name.c_str());
+            return formatStr("Module{%s}", val->name);
         }
         default:
             return "Unknown{}";
