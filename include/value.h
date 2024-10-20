@@ -5,15 +5,19 @@
 
 using Number = double;
 using String = std::string;
+using Boolean = bool;
+
+struct None {};
 
 using Value = Variant<
     Number,
     String,
+    Boolean,
+    None,
     Shared<struct Upvalue>,
     Shared<struct Function>,
     Shared<struct Module>
 >;
-
 
 struct Upvalue {
     Value* loc;
@@ -26,8 +30,6 @@ struct Function {
 };
 
 struct Module {
-    Module(Chunk chunk) : chunk(chunk) {}
-
-    Chunk chunk;
+    std::string name;
     std::map<std::string, Value> globals;
 };

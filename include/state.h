@@ -13,8 +13,12 @@ struct Result {
 
 class State {
 public:
-    State();
+    State() = default;
 
     Result run(std::string source);
-    Result run(Module mod);
+
+    // Module loadModule(std::string name);
+
+private:
+    Module base;
 };

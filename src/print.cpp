@@ -429,9 +429,6 @@ int disassembleInstruction(const Chunk& chunk, int index) {
         case OpJumpBack:
             index = jumpInstruction("JumpBack", index, chunk, true);
             break;
-        case OpJumpPopIfTrue:
-            index = jumpInstruction("JumpIfTrue", index, chunk);
-            break;
         case OpJumpPopIfFalse:
             index = jumpInstruction("JumpIfFalse", index, chunk);
             break;
@@ -486,4 +483,60 @@ void printChunk(const Chunk& chunk, std::string name) {
 
     printf(">====%s====<\n", std::string(name.size(), '=').c_str());
 
+}
+
+std::string getTypename(int which) {
+    switch (which) {
+        case Value::which<Number>(): 
+            return  "Number";
+        case Value::which<String>(): 
+            return  "String";
+        case Value::which<Boolean>(): 
+            return  "Boolean";
+        case Value::which<None>(): 
+            return  "None";
+        case Value::which<Shared<Upvalue>>(): 
+            return "Upvalue";
+        case Value::which<Shared<Function>>(): 
+            return "Function";
+        case Value::which<Shared<Module>>(): 
+            return "Module";
+        default:
+            return "Unknown";
+    }
+}
+
+std::string getValueStr(const Value& value) {
+    switch (value.which()) {
+        case Value::which<Number>(): {
+            return formatStr("Number{%d}", value.get<Number>());
+        }
+        case Value::which<String>(): {
+            return formatStr("String{%s}", value.get<String>().c_str());
+        }
+        case Value::which<Boolean>(): {
+            return formatStr("Boolean{%s}", value.get<bool>() ? "true" : "false");
+        }
+        case Value::which<None>(): {
+            return "None{}";
+        }
+        case Value::which<Shared<Upvalue>>(): {
+            auto& val = value.get<Shared<Upvalue>>();
+            return formatStr("Upvalue{%s}", getValueStr(*val->loc).c_str());
+        }
+        case Value::which<Shared<Function>>(): {
+            auto val = value.get<Shared<Function>>();
+            return formatStr("Function{%s, argc: %d}", val->prot.name.c_str(), val->prot.argc);
+        }
+        case Value::which<Shared<Module>>(): {
+            auto& val = value.get<Shared<Module>>();
+            return formatStr("Module{%s}", val->name.c_str());
+        }
+        default:
+            return "Unknown{}";
+    }
+}
+
+void printValue(const Value& value) {
+    print(getValueStr(value));
 }

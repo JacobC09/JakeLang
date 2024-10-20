@@ -1,6 +1,26 @@
+#include <cstdarg>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <string>
-#include <stdarg.h>
-#include "util.h"
+
+std::string formatString(const std::string& str, int width, int precision, bool leftAlign, bool zeroPad) {
+    std::ostringstream oss;
+
+    if (leftAlign) {
+        oss << std::left;
+    } else {
+        oss << std::right;
+        oss << std::setfill(zeroPad ? '0' : ' ');
+    }
+
+    if (precision >= 0) {
+        oss << std::fixed << std::setprecision(precision);
+    }
+
+    oss << std::setw(width) << str;
+    return oss.str();
+}
 
 std::string formatStr(const char* format, ...) {
     va_list args;
@@ -11,35 +31,89 @@ std::string formatStr(const char* format, ...) {
     while (*format) {
         if (*format == '%') {
             ++format;
+            bool leftAlign = false;
+            bool zeroPad = false;
+            int width = 0;
+            int precision = -1;
+
+            if (*format == '-') {
+                leftAlign = true;
+                ++format;
+            } else if (*format == '0') {
+                zeroPad = true;
+                ++format;
+            }
+
+            while (*format >= '0' && *format <= '9') {
+                width = width * 10 + (*format - '0');
+                ++format;
+            }
+
+            if (*format == '.') {
+                ++format;
+                precision = 0;
+                while (*format >= '0' && *format <= '9') {
+                    precision = precision * 10 + (*format - '0');
+                    ++format;
+                }
+            }
 
             switch (*format) {
                 case 'd': {
                     int i = va_arg(args, int);
-                    result += std::to_string(i);
+                    result += formatString(std::to_string(i), width, -1, leftAlign, zeroPad);
                     break;
                 }
 
                 case 'f': {
                     double d = va_arg(args, double);
-                    result += std::to_string(d);
+                    std::ostringstream floatStream;
+                    if (precision >= 0) {
+                        floatStream << std::fixed << std::setprecision(precision) << d;
+                    } else {
+                        floatStream << d; 
+                    }
+                    result += formatString(floatStream.str(), width, precision, leftAlign, zeroPad);
                     break;
                 }
 
                 case 's': {
-                    const char* str = va_arg(args, const char*);
-                    result += str;
+                    std::string str = va_arg(args, std::string);
+                    result += formatString(str, width, precision, leftAlign, zeroPad);
+                    break;
+                }
+
+                case 'p': {
+                    const char* cstr = va_arg(args, const char*);
+                    result += formatString(cstr ? cstr : "(null)", width, precision, leftAlign, zeroPad);
                     break;
                 }
 
                 case 'c': {
-                    char c = static_cast<char>(va_arg(args, int));
-                    result.push_back(c);
+                    char c = va_arg(args, int);
+                    result += formatString(std::string(1, c), width, precision, leftAlign, zeroPad);
                     break;
                 }
 
-                default: break;
-            }
+                case 'x': {
+                    int x = va_arg(args, int);
+                    std::ostringstream hexStream;
+                    if (zeroPad && !leftAlign) hexStream << std::setfill('0');
+                    hexStream << std::hex << std::setw(width) << x;
+                    result += hexStream.str();
+                    break;
+                }
 
+                case '%': {
+                    result += '%';
+                    break;
+                }
+
+                default: {
+                    result += "<unsupported format>";
+                    break;
+                }
+            }
         } else {
             result.push_back(*format);
         }
@@ -47,6 +121,5 @@ std::string formatStr(const char* format, ...) {
     }
 
     va_end(args);
-
     return result;
 }

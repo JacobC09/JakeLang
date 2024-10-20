@@ -1,7 +1,5 @@
-var hi;
+var msg = "Hello, World";
 
-func jake(h2i) {
-    func jake2() {
-        print hi;
-    }
+if (1 + 1) {
+    print msg;
 }

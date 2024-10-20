@@ -4,8 +4,7 @@
 #include "parser.h"
 #include "print.h"
 #include "value.h"
-
-State::State() {};
+#include "interpreter.h"
 
 Result State::run(std::string source) {
     Parser parser = Parser(source);
@@ -25,10 +24,9 @@ Result State::run(std::string source) {
 
     printChunk(chunk);
 
-    Shared<Module> mod = std::make_shared<Module>(chunk);
-
-    return Result{ExitCode::Success};
+    Interpreter interpreter = Interpreter(*this);
+    print(">=== Output ===<");
+    Result result = interpreter.interpret(base, chunk);
+    print(">==============<");
+    return result;
 }
-Result State::run(Module mod) {
-    return Result();
-};

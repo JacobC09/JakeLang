@@ -128,11 +128,8 @@ enum Instructions : u8 {
     OpSetLocal,
     OpJump,
     OpJumpBack,
-    OpJumpPopIfTrue,
     OpJumpPopIfFalse,
-    
     OpFunction,
-    
     OpGetUpValue,
     OpSetUpValue,
     OpCloseUpValue,
