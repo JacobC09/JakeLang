@@ -40,12 +40,6 @@ void runFile(std::string path) {
 }
 
 int main(int argc, const char* argv[]) {
-    std::string myString = "Hello";
-    const char* myCStr = "World";
-    int myHex = 255;
-    std::string formatted = formatStr("Int: %05d, Float: %.2f, String: %s, Char: %c, CStr: %p, Hex: %04x", 42, 3.14159, myString, 'A', myCStr, myHex);
-    std::cout << formatted << std::endl;
-
-    // runFile("test/code.jake");
+    runFile("test/code.jake");
     return 0;
 }
