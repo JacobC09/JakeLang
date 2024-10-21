@@ -1,5 +1,7 @@
-var msg = "Hello, World";
+var local = 2 + {
+    print "start";
+    return 4;
+    print "end";
+} + 1;
 
-if (1 + 1) {
-    print msg;
-}
+print hello;

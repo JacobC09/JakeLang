@@ -21,6 +21,7 @@ public:
 
 private:
     void error(std::string msg);
+    int pc();
     u8 readByte();
     u16 readShort();
     Number readNumberConstant();

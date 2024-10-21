@@ -102,8 +102,8 @@ private:
 enum Instructions : u8 {
     OpPop,
     OpReturn,
-    OpConstantName,
-    OpConstantNumber,
+    OpName,
+    OpNumber,
     OpByteNumber,
     OpTrue,
     OpFalse,

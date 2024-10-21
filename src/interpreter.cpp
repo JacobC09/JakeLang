@@ -1,4 +1,5 @@
 #include "interpreter.h"
+
 #include "print.h"
 
 Interpreter::Interpreter(State& state) : state(state) {
@@ -14,33 +15,39 @@ Result Interpreter::interpret(Module& mod, Chunk& chunk) {
 }
 
 Result Interpreter::run() {
+    CallFrame& frame = frames.back();
+
     for (;;) {
         u8 instruction = readByte();
 
         switch (instruction) {
             case OpPop: {
-                stack.resize(stack.size() - readByte());
+                u8 amount = readByte();
+                if (amount > (signed)stack.size()) {
+                    error("Tried to pop on empty stack");
+                    return Result{1};
+                }
+                stack.resize(stack.size() - amount);
                 break;
             }
 
             case OpReturn: {
                 Value val = pop();
-                return Result {0};
+                return Result{0};
             };
 
-
-            case OpConstantName: {
+            case OpName: {
                 push(readNameConstant());
                 break;
             }
 
-            case OpConstantNumber: {
+            case OpNumber: {
                 push(readNumberConstant());
                 break;
             }
 
             case OpByteNumber: {
-                push((double) readByte());
+                push((double)readByte());
                 break;
             }
 
@@ -60,8 +67,8 @@ Result Interpreter::run() {
             }
 
             case OpAdd: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
 
                 if (a.is<Number>() && b.is<Number>()) {
                     push(a.get<Number>() + b.get<Number>());
@@ -69,32 +76,32 @@ Result Interpreter::run() {
                     push(a.get<String>() + b.get<String>());
                 } else {
                     error("Can only add numbers or strings");
-                    return Result {1};
+                    return Result{1};
                 }
 
                 break;
             }
 
             case OpSubtract: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
                     error("Can only subtract numbers");
-                    return Result {1};
+                    return Result{1};
                 }
 
-                push(a.get<Number>() > b.get<Number>());
+                push(a.get<Number>() - b.get<Number>());
                 break;
             }
 
             case OpMultiply: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
                     error("Can only multiply numbers");
-                    return Result {1};
+                    return Result{1};
                 }
 
                 push(a.get<Number>() * b.get<Number>());
@@ -102,12 +109,12 @@ Result Interpreter::run() {
             }
 
             case OpDivide: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
                     error("Can only divide numbers");
-                    return Result {1};
+                    return Result{1};
                 }
 
                 push(a.get<Number>() / b.get<Number>());
@@ -115,20 +122,19 @@ Result Interpreter::run() {
             }
 
             case OpEqual: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
                 push(valuesEqual(a, b));
-
                 break;
             }
 
             case OpGreater: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
                     error("Can only compare numbers");
-                    return Result {1};
+                    return Result{1};
                 }
 
                 push(a.get<Number>() * b.get<Number>());
@@ -136,12 +142,12 @@ Result Interpreter::run() {
             }
 
             case OpLess: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
                     error("Can only compare numbers");
-                    return Result {1};
+                    return Result{1};
                 }
 
                 push(a.get<Number>() * b.get<Number>());
@@ -149,12 +155,12 @@ Result Interpreter::run() {
             }
 
             case OpGreaterThanOrEq: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
                     error("Can only compare numbers");
-                    return Result {1};
+                    return Result{1};
                 }
 
                 push(a.get<Number>() * b.get<Number>());
@@ -162,12 +168,12 @@ Result Interpreter::run() {
             }
 
             case OpLessThanOrEq: {
-                Value a = pop();
                 Value b = pop();
+                Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
                     error("Can only compare numbers");
-                    return Result {1};
+                    return Result{1};
                 }
 
                 push(a.get<Number>() * b.get<Number>());
@@ -179,7 +185,7 @@ Result Interpreter::run() {
 
                 if (!a.is<Number>()) {
                     error("Can only negate a number");
-                    return Result {1};
+                    return Result{1};
                 }
 
                 push(-a.get<Number>());
@@ -204,17 +210,17 @@ Result Interpreter::run() {
             }
 
             case OpDefineGlobal: {
-                frame()->mod.globals[readNameConstant()] = pop();
+                frame.mod.globals[readNameConstant()] = pop();
                 break;
             }
 
             case OpGetGlobal: {
                 String name = readNameConstant();
-                auto value = frame()->mod.globals.find(name);
+                auto value = frame.mod.globals.find(name);
 
-                if (value == frame()->mod.globals.end()) {
+                if (value == frame.mod.globals.end()) {
                     error(formatStr("Couldn't find global named %s in current module", name));
-                    return Result {1};
+                    return Result{1};
                 }
 
                 push(value->second);
@@ -223,11 +229,11 @@ Result Interpreter::run() {
 
             case OpSetGlobal: {
                 String name = readNameConstant();
-                auto value = frame()->mod.globals.find(name);
+                auto value = frame.mod.globals.find(name);
 
-                if (value == frame()->mod.globals.end()) {
+                if (value == frame.mod.globals.end()) {
                     error(formatStr("Couldn't find global named %s in current module", name));
-                    return Result {1};
+                    return Result{1};
                 }
 
                 value->second = peek(0);
@@ -235,34 +241,34 @@ Result Interpreter::run() {
             };
 
             case OpGetLocal: {
-                push(frame()->sp[readByte()]);
+                push(frame.sp[readByte()]);
                 break;
             }
 
             case OpSetLocal: {
-                frame()->sp[readByte()] = peek(0);
+                frame.sp[readByte()] = peek(0);
                 break;
             }
 
             case OpJump: {
-                frame()->ip += readShort();
+                frame.ip += readShort();
                 break;
             }
 
             case OpJumpBack: {
-                frame()->ip -= readShort();
+                frame.ip -= readShort();
                 break;
             }
 
             case OpJumpPopIfFalse: {
                 u16 distance = readShort();
-                frame()->ip += !isTruthy(pop()) * distance;
+                frame.ip += !isTruthy(pop()) * distance;
                 break;
             }
 
             default: {
                 error(formatStr("Unknown Instruction (%d)", (int)instruction));
-                return Result {1};
+                return Result{1};
             }
         }
     }
@@ -276,13 +282,17 @@ void Interpreter::error(std::string msg) {
     printf("    %s\n", msg.c_str());
 }
 
+int Interpreter::pc() {
+    return frame()->ip - frame()->code.bytecode.data() - 1;
+}
+
 u8 Interpreter::readByte() {
     return *frame()->ip++;
 }
 
 u16 Interpreter::readShort() {
     frame()->ip += 2;
-    return (u16)((frame()->ip[-1] << 8) | frame()->ip[-2]);
+    return (u16)((frame()->ip[-2] << 8) | frame()->ip[-1]);
 }
 
 Number Interpreter::readNumberConstant() {

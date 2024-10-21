@@ -356,7 +356,7 @@ void Compiler::expression(Expr expr) {
             double value = expr.get<NumLiteral>().value;
             if (value > UINT8_MAX || value < 0) {
                 int index = makeNumberConstant(value);
-                emitByte(OpConstantNumber, (u8)index);
+                emitByte(OpNumber, (u8)index);
             } else {
                 emitByte(OpByteNumber, (u8)value);
             }
@@ -370,7 +370,7 @@ void Compiler::expression(Expr expr) {
 
         case Expr::which<StrLiteral>(): {
             int index = makeNameConstant(expr.get<StrLiteral>().value);
-            emitByte(OpConstantName, (u8)index);
+            emitByte(OpName, (u8)index);
             break;
         }
 
@@ -456,6 +456,9 @@ void Compiler::expression(Expr expr) {
             auto block = expr.get<Ptr<BlockExpr>>();
             beginScope();
             body(block->body);
+            if (!block->body.size() || block->body.back().which() != Stmt::which<Ptr<ReturnStmt>>()) {
+                emitByte(OpNone);
+            }
             endScope();
             break;
         }

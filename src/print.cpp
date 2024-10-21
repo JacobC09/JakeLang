@@ -342,14 +342,14 @@ int disassembleInstruction(const Chunk& chunk, int index) {
         case OpReturn:
             index = simpleInstruction("Return", index);
             break;
-        case OpConstantNumber:
-            index = constantInstruction("Number Constant", index, chunk, false);
+        case OpNumber:
+            index = constantInstruction("Number", index, chunk, false);
             break;
-        case OpConstantName:
-            index = constantInstruction("Name Constant", index, chunk, true);
+        case OpName:
+            index = constantInstruction("Name", index, chunk, true);
             break;
         case OpByteNumber:
-            index = byteInstruction("Byte Number", index, chunk);
+            index = byteInstruction("ByteNumber", index, chunk);
             break;
         case OpTrue:
             index = simpleInstruction("True", index);
@@ -430,7 +430,7 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             index = jumpInstruction("JumpBack", index, chunk, true);
             break;
         case OpJumpPopIfFalse:
-            index = jumpInstruction("JumpIfFalse", index, chunk);
+            index = jumpInstruction("JumpPopIfFalse", index, chunk);
             break;
         case OpFunction:
             index = functionInstruction("Function", index, chunk);
