@@ -29,11 +29,10 @@ void runFile(std::string path) {
     print(source);
     print(">==============<");
 
-    clock.tick();
-
     State state;
+    
+    clock.tick();
     state.run(source);
-
     clock.tock();
 
     print("Finished executing in", clock.duration().count(), "miliseconds");
