@@ -14,19 +14,21 @@ using Value = Variant<
     String,
     Boolean,
     None,
-    Shared<struct Upvalue>,
+    Shared<struct UpValue>,
     Shared<struct Function>,
     Shared<struct Module>
 >;
 
-struct Upvalue {
+struct UpValue {
     Value* loc;
-    Value ownedValue;
+    Value owned;
+    Shared<struct UpValue> next;
 };
 
 struct Function {
     Prototype prot;
-    std::vector<Upvalue> upvalues;
+    Shared<Module> mod;
+    std::vector<Shared<UpValue>> upValues;
 };
 
 struct Module {

@@ -4,6 +4,7 @@
 #include "compiler.h"
 
 void printStmt(const Stmt& stmt, int indent);
+int disassembleInstruction(const Chunk& chunk, int index);
 
 void printToken(const Token& token) {
     static const char* names[] = {
@@ -21,7 +22,7 @@ void printToken(const Token& token) {
 
         "Identifier", "String", "Number", "True", "False", "None",
 
-        "Print", "If", "Else", "Loop", "While", "For", "In", "Continue", "Break", "Func", "Var",
+        "Print", "If", "Else", "Loop", "While", "For", "In", "Continue", "Break", "Func", "Var", "Exit",
 
         "Error", "EndOfFile"
     };
@@ -45,11 +46,11 @@ void printExpr(const Expr& expr, int indent) {
 
     switch (expr.which()) {
         case Expr::which<NumLiteral>(): {
-            auto val = expr.get<NumLiteral>();
-            if (std::floor(val.value) != val.value) {
-                printf("NumLiteral{%f}\n", val.value);
+            double val = expr.get<NumLiteral>().value;
+            if (std::floor(val) != val) {
+                printf("NumLiteral{%f}\n", val);
             } else {
-                printf("NumLiteral{%d}\n", (int) val.value);
+                printf("NumLiteral{%d}\n", (int) val);
             }
 
             break;
@@ -71,14 +72,17 @@ void printExpr(const Expr& expr, int indent) {
         }
 
         case Expr::which<Identifier>(): {
-            printf("Identifier{%s}\n", expr.get<Identifier>().value.c_str());
+            printf("Identifier{%s}\n", expr.get<Identifier>().name.c_str());
             break;
         }
 
         case Expr::which<Ptr<AssignmentExpr>>(): {
             auto val = expr.get<Ptr<AssignmentExpr>>();
 
-            printf("AssigmentExpr{%s}\n", val->target.value.c_str());
+            print("AssigmentExpr{}");
+            printIndent(indent + 1);
+            print("Target:");
+            printExpr(val->target, indent + 1);
             printExpr(val->expr, indent + 1);
             break;
         }
@@ -111,15 +115,25 @@ void printExpr(const Expr& expr, int indent) {
             break;
         }
 
-        case Expr::which<Ptr<BlockExpr>>(): {
-            auto val = expr.get<Ptr<BlockExpr>>();
-            print("BlockExpr{}");
-            for (auto& stmt : val->body) {
-                printStmt(stmt, indent + 1);
+        case Expr::which<Ptr<CallExpr>>(): {
+            auto& val = expr.get<Ptr<CallExpr>>();
+            print("CallExpr{}");
+            printIndent(indent + 1);
+            print("Args:", val->args.size() ? "" : "(none)");
+            for (auto& expr : val->args) {
+                printExpr(expr, indent + 2);
             }
+            printExpr(val->target, indent + 1);
             break;
         }
 
+        case Expr::which<Ptr<PropertyExpr>>(): {
+            auto& val = expr.get<Ptr<PropertyExpr>>();
+            printf("PropertyExpr{%s}\n", val->prop.name.c_str());
+            printExpr(val->expr, indent + 1);
+            break;
+        }
+        
         case Expr::which<Empty>(): {
             print("Empty{}");
             break;
@@ -217,7 +231,7 @@ void printStmt(const Stmt& stmt, int indent) {
             printIndent(indent + 1);
             print("Target:");
             printIndent(indent + 2);
-            print(val->target.value);
+            print(val->target.name);
             printIndent(indent + 1);
             print("Iterator:");
             printExpr(val->iterator, indent + 2);
@@ -245,7 +259,7 @@ void printStmt(const Stmt& stmt, int indent) {
             printIndent(indent + 1);
             print("Name:");
             printIndent(indent + 2);
-            print(val->name.value);
+            print(val->name.name);
             printIndent(indent + 1);
             print("Arguments:");
             for (auto& expr : val->args) {
@@ -263,11 +277,18 @@ void printStmt(const Stmt& stmt, int indent) {
 
         case Stmt::which<Ptr<VarDeclaration>>(): {
             auto val = stmt.get<Ptr<VarDeclaration>>();
-            printf("ValDeclaration{%s}\n", val->name.value.c_str());
+            printf("ValDeclaration{%s}\n", val->target.name.c_str());
             printExpr(val->expr, indent + 1);
             break;
         }
 
+        case Stmt::which<Ptr<BlockStmt>>(): {
+            print("BlockExpr{}");
+            for (auto& stmt : stmt.get<Ptr<BlockStmt>>()->body) {
+                printStmt(stmt, indent + 1);
+            }
+            break;
+        }
 
         case Stmt::which<Empty>(): {
             print("Empty{}");
@@ -319,28 +340,42 @@ int byteInstruction(const char* name, int index, const Chunk& chunk) {
 
 int jumpInstruction(const char* name, int index, const Chunk& chunk, bool back=false) {
     int val = chunk.bytecode[index + 1] << 8 | chunk.bytecode[index + 2];
-    printf("%-16s %4d to %d\n", name, val, index + (back ? -val : val + 2) + 1);
+    printf("%-16s %4d to %d\n", name, val, index + (back ? -val : val) + 3);
     return index + 3;
 }
 
 int functionInstruction(const char* name, int index, const Chunk& chunk) {
-    int prototypeIndex = chunk.bytecode[index + 1];
+    int prototypeIndex = chunk.bytecode[++index];
     const Prototype& prototype = chunk.constants.prototypes[prototypeIndex];
     printf("%-16s %4d, argc: %d\n", name, prototypeIndex, prototype.argc);
+    printf(">=== %s ===<\n", prototype.name.c_str());
+    for (int i = 0; i < prototype.upValues; i++) {
+        u8 upValueIndex = chunk.bytecode[++index];
+        u8 isLocal = chunk.bytecode[++index];
+        printf("UpValue >> index: %d, isLocal: %s\n", upValueIndex, isLocal ? "true" : "false");
+    }
 
-    printChunk(prototype.chunk, prototype.name);
-    return index + 2;
+    for (int i = 0; i < (signed) prototype.chunk.bytecode.size();) {
+        i = disassembleInstruction(prototype.chunk, i);
+    }
+
+    printf(">====%s====<\n", std::string(prototype.name.size(), '=').c_str());
+
+    return index + 1;
 }
 
 int disassembleInstruction(const Chunk& chunk, int index) {
     printf("%04d ", index);
     
     switch (chunk.bytecode[index]) {
-        case OpPop:
-            index = byteInstruction("Pop", index, chunk);
+        case OpExit:
+            index = byteInstruction("Exit", index, chunk);
             break;
         case OpReturn:
             index = simpleInstruction("Return", index);
+            break;
+        case OpPop:
+            index = byteInstruction("Pop", index, chunk);
             break;
         case OpNumber:
             index = constantInstruction("Number", index, chunk, false);
@@ -414,14 +449,20 @@ int disassembleInstruction(const Chunk& chunk, int index) {
         case OpSetLocal:
             index = byteInstruction("SetLocal", index, chunk);
             break;
+        case OpGetProperty:
+            index = constantInstruction("GetProperty", index, chunk, true);
+            break;
+        case OpSetProperty:
+            index = constantInstruction("SetProperty", index, chunk, true);
+            break;
         case OpGetUpValue:
             index = byteInstruction("GetUpValue", index, chunk);
             break;
         case OpSetUpValue:
             index = byteInstruction("SetUpValue", index, chunk);
             break;
-        case OpCloseUpValue:
-            index = simpleInstruction("CloseUpValue", index);
+        case OpPopLocals:
+            index = byteInstruction("CloseUpValue", index, chunk);
             break;
         case OpJump:
             index = jumpInstruction("Jump", index, chunk);
@@ -436,33 +477,9 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             index = functionInstruction("Function", index, chunk);
             break;
         case OpCall:
-            index = simpleInstruction("Call", index);
+            index = byteInstruction("Call", index, chunk);
             break;
-        case OpClosure:
-            index = simpleInstruction("Closure", index);
-            break;
-        case OpClass:
-            index = simpleInstruction("Class", index);
-            break;
-        case OpGetProperty:
-            index = simpleInstruction("GetProperty", index);
-            break;
-        case OpSetProperty:
-            index = simpleInstruction("SetProperty", index);
-            break;
-        case OpMethod:
-            index = simpleInstruction("Method", index);
-            break;
-        case OpInvoke:
-            index = simpleInstruction("Invoke", index);
-            break;
-        case OpInherit:
-            index = simpleInstruction("Inherit", index);
-            break;
-        case OpGetSuper:
-            index = simpleInstruction("OpGetSuper", index);
-            break;
-
+            
         default:
             print("Unknown Instruction");
             index++;
@@ -495,8 +512,8 @@ std::string getTypename(int which) {
             return  "Boolean";
         case Value::which<None>(): 
             return  "None";
-        case Value::which<Shared<Upvalue>>(): 
-            return "Upvalue";
+        case Value::which<Shared<UpValue>>(): 
+            return "UpValue";
         case Value::which<Shared<Function>>(): 
             return "Function";
         case Value::which<Shared<Module>>(): 
@@ -509,20 +526,20 @@ std::string getTypename(int which) {
 std::string getValueStr(const Value& value) {
     switch (value.which()) {
         case Value::which<Number>(): {
-            return formatStr("Number{%d}", value.get<Number>());
+            return formatStr("%lf", value.get<Number>());
         }
         case Value::which<String>(): {
-            return formatStr("String{%s}", value.get<String>());
+            return value.get<String>();
         }
         case Value::which<Boolean>(): {
-            return formatStr("Boolean{%p}", value.get<bool>() ? "true" : "false");
+            return value.get<bool>() ? "true" : "false";
         }
         case Value::which<None>(): {
-            return "None{}";
+            return "None";
         }
-        case Value::which<Shared<Upvalue>>(): {
-            auto& val = value.get<Shared<Upvalue>>();
-            return formatStr("Upvalue{%s}", getValueStr(*val->loc));
+        case Value::which<Shared<UpValue>>(): {
+            auto& val = value.get<Shared<UpValue>>();
+            return formatStr("UpValue{%s}", getValueStr(*val->loc));
         }
         case Value::which<Shared<Function>>(): {
             auto val = value.get<Shared<Function>>();

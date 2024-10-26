@@ -20,7 +20,7 @@ enum class TokenType {
     Identifier, String, Number, True, False, None,
 
     // Keywords
-    Print, If, Else, Loop, While, For, In, Continue, Break, Return, Func, Var,
+    Print, If, Else, Loop, While, For, In, Continue, Break, Return, Func, Var, Exit,
 
     Error, EndOfFile
 };

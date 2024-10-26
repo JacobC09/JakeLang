@@ -29,13 +29,13 @@ private:
     Expr factor();
     Expr exponent();
     Expr unary();
+    Expr post();
     Expr primary();
 
-    Expr number();
-    Expr string();
-    Expr identifer();
+    NumLiteral number();
+    StrLiteral string();
+    Identifier identifer();
     Expr grouping();
-    Expr blockExpr();
     
     std::vector<Expr> exprList();
     std::vector<Stmt> block();

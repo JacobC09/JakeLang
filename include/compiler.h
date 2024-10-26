@@ -17,7 +17,8 @@ struct Chunk {
 
 struct Prototype {
     std::string name;
-    int argc;
+    u8 argc;
+    u8 upValues;
     Chunk chunk;
 };
 
@@ -26,25 +27,31 @@ struct Local {
     int depth;
 };
 
-struct UpValue {
+struct UpValueData {
     u8 index;
-    bool inEnclosingChunk;
+    bool isLocal;
 };
 
+struct LoopData;
+struct ChunkData;
+
 struct ChunkData {
-    std::unique_ptr<struct ChunkData> enclosing;
+    std::unique_ptr<ChunkData> enclosing;
+    std::unique_ptr<LoopData> loopData;
     int scopeDepth;
+    int localOffset;
     bool global;
     Chunk chunk;
     std::vector<Local> locals;
-    std::vector<UpValue> upvalues;
+    std::vector<UpValueData> upValues;
 };
 
 struct LoopData {
-    std::unique_ptr<struct LoopData> enclosing;
+    std::unique_ptr<LoopData> enclosing;
     int start;
     std::vector<int> breaks;
 };
+
 
 class Compiler {
 public:
@@ -57,30 +64,33 @@ private:
     Chunk* getChunk();
     void newChunk();
     Chunk endChunk();
-    void newLoop();
+    void beginScope();
+    void endScope();
+    void beginLoop();
     void endLoop();
     void error(std::string msg);
     int makeNumberConstant(double value);
     int makeNameConstant(std::string value);
     void addLocal(std::string name);
-    int addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool inEnclosingChunk);
+    int addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool isLocal);
     int findLocal(std::unique_ptr<ChunkData>& chunk, std::string name);
     int findUpValue(std::unique_ptr<ChunkData>& chunk, std::string name);
-    void beginScope();
-    void endScope();
+    void declare(std::string name);
     void body(std::vector<Stmt>& stmts);
-    void assignment(Ptr<AssignmentExpr>& assignment);
+    void breakStmt();
+    void continueStmt();
+    void exitStmt(ExitStmt& stmt);
+    void returnStmt(Ptr<ReturnStmt> stmt);
     void printStmt(Ptr<PrintStmt>& stmt);
     void ifStmt(Ptr<IfStmt>& stmt);
     void loopBlock(Ptr<LoopBlock>& stmt);
     void whileLoop(Ptr<WhileLoop>& stmt);
     void forLoop(Ptr<ForLoop>& stmt);
-    void breakStmt();
-    void continueStmt();
     void funcDeclaration(Ptr<FuncDeclaration>& stmt);
     void varDeclaration(Ptr<VarDeclaration>& stmt);
     void expression(Expr expr);
-    void identifier(Identifier& id);
+    void assignment(Ptr<AssignmentExpr>& assignment);
+    void identifier(Identifier& id, bool get);
 
     void emitByte(u8 value);
     void emitByte(u16 value);
@@ -94,14 +104,14 @@ private:
     void patchJump(int index);
 
     std::unique_ptr<ChunkData> chunkData;
-    std::unique_ptr<LoopData> loopData;
 
     bool hadError;
 };
 
 enum Instructions : u8 {
-    OpPop,
+    OpExit,
     OpReturn,
+    OpPop,
     OpName,
     OpNumber,
     OpByteNumber,
@@ -126,20 +136,14 @@ enum Instructions : u8 {
     OpSetGlobal,
     OpGetLocal,
     OpSetLocal,
+    OpGetProperty,
+    OpSetProperty,
+    OpGetUpValue,
+    OpSetUpValue,
+    OpPopLocals,
     OpJump,
     OpJumpBack,
     OpJumpPopIfFalse,
     OpFunction,
-    OpGetUpValue,
-    OpSetUpValue,
-    OpCloseUpValue,
     OpCall,
-    OpClosure,
-    OpClass,
-    OpGetProperty,
-    OpSetProperty,
-    OpMethod,
-    OpInvoke,
-    OpInherit,
-    OpGetSuper
 };

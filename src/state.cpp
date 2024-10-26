@@ -6,6 +6,10 @@
 #include "value.h"
 #include "interpreter.h"
 
+State::State() {
+    base = std::make_shared<Module>();
+}
+
 Result State::run(std::string source) {
     Parser parser = Parser(source);
     Ast ast = parser.parse();

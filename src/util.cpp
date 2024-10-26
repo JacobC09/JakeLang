@@ -1,24 +1,30 @@
+#include <string>
 #include <cstdarg>
 #include <iomanip>
-#include <iostream>
 #include <sstream>
-#include <string>
+#include <iostream>
 
 std::string formatString(const std::string& str, int width, int precision, bool leftAlign, bool zeroPad) {
     std::ostringstream oss;
 
+    // Set alignment
     if (leftAlign) {
         oss << std::left;
     } else {
-        oss << std::right;
-        oss << std::setfill(zeroPad ? '0' : ' ');
+        oss << std::right;  // Default is right alignment
+        if (zeroPad) {
+            oss << std::setfill('0');  // Use zero padding if not left aligned
+        } else {
+            oss << std::setfill(' ');  // Default is space fill
+        }
     }
 
+    // Apply width and precision
     if (precision >= 0) {
         oss << std::fixed << std::setprecision(precision);
     }
-
     oss << std::setw(width) << str;
+
     return oss.str();
 }
 
@@ -36,6 +42,7 @@ std::string formatStr(const char* format, ...) {
             int width = 0;
             int precision = -1;
 
+            // Check for flags
             if (*format == '-') {
                 leftAlign = true;
                 ++format;
@@ -44,11 +51,13 @@ std::string formatStr(const char* format, ...) {
                 ++format;
             }
 
+            // Parse width
             while (*format >= '0' && *format <= '9') {
                 width = width * 10 + (*format - '0');
                 ++format;
             }
 
+            // Parse precision
             if (*format == '.') {
                 ++format;
                 precision = 0;
@@ -65,13 +74,16 @@ std::string formatStr(const char* format, ...) {
                     break;
                 }
 
-                case 'f': {
+                case 'f':  // Support for float and double
+                case 'l':  // Support for long double as well (could be '%lf')
+                {
+                    if (*format == 'l') format++;
                     double d = va_arg(args, double);
                     std::ostringstream floatStream;
                     if (precision >= 0) {
                         floatStream << std::fixed << std::setprecision(precision) << d;
                     } else {
-                        floatStream << d; 
+                        floatStream << d;  // Default precision
                     }
                     result += formatString(floatStream.str(), width, precision, leftAlign, zeroPad);
                     break;
@@ -90,7 +102,7 @@ std::string formatStr(const char* format, ...) {
                 }
 
                 case 'c': {
-                    char c = va_arg(args, int);
+                    char c = static_cast<char>(va_arg(args, int));
                     result += formatString(std::string(1, c), width, precision, leftAlign, zeroPad);
                     break;
                 }
@@ -99,7 +111,7 @@ std::string formatStr(const char* format, ...) {
                     int x = va_arg(args, int);
                     std::ostringstream hexStream;
                     if (zeroPad && !leftAlign) hexStream << std::setfill('0');
-                    hexStream << std::hex << std::setw(width) << x;
+                    hexStream << std::hex << std::setw(width) << x;  // Format hex
                     result += hexStream.str();
                     break;
                 }

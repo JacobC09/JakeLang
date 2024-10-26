@@ -7,20 +7,31 @@ Interpreter::Interpreter(State& state) : state(state) {
     frames.reserve(frames_max);
 }
 
-Result Interpreter::interpret(Module& mod, Chunk& chunk) {
-    frames.push_back(CallFrame{chunk.bytecode.data(), stack.data(), mod, chunk, nullptr});
-
+Result Interpreter::interpret(Shared<Module> mod, Chunk& chunk) {
+    newFrame(mod, chunk, stack.data(), nullptr);
     hadError = false;
+    openUpValues = nullptr;
     return run();
 }
 
 Result Interpreter::run() {
-    CallFrame& frame = frames.back();
+    CallFrame* frame = getFrame();
 
     for (;;) {
         u8 instruction = readByte();
 
         switch (instruction) {
+            case OpExit: {
+                return Result {(int) readByte()};
+            }
+
+            case OpReturn: {
+                closeUpValues(frame->sp);
+                frames.pop_back();
+                frame = getFrame();
+                break;
+            }
+
             case OpPop: {
                 u8 amount = readByte();
                 if (amount > (signed)stack.size()) {
@@ -30,11 +41,6 @@ Result Interpreter::run() {
                 stack.resize(stack.size() - amount);
                 break;
             }
-
-            case OpReturn: {
-                Value val = pop();
-                return Result{0};
-            };
 
             case OpName: {
                 push(readNameConstant());
@@ -137,7 +143,7 @@ Result Interpreter::run() {
                     return Result{1};
                 }
 
-                push(a.get<Number>() * b.get<Number>());
+                push(a.get<Number>() > b.get<Number>());
                 break;
             }
 
@@ -150,7 +156,7 @@ Result Interpreter::run() {
                     return Result{1};
                 }
 
-                push(a.get<Number>() * b.get<Number>());
+                push(a.get<Number>() < b.get<Number>());
                 break;
             }
 
@@ -163,7 +169,7 @@ Result Interpreter::run() {
                     return Result{1};
                 }
 
-                push(a.get<Number>() * b.get<Number>());
+                push(a.get<Number>() >= b.get<Number>());
                 break;
             }
 
@@ -176,7 +182,7 @@ Result Interpreter::run() {
                     return Result{1};
                 }
 
-                push(a.get<Number>() * b.get<Number>());
+                push(a.get<Number>() <= b.get<Number>());
                 break;
             }
 
@@ -210,16 +216,16 @@ Result Interpreter::run() {
             }
 
             case OpDefineGlobal: {
-                frame.mod.globals[readNameConstant()] = pop();
+                frame->mod->globals[readNameConstant()] = pop();
                 break;
             }
 
             case OpGetGlobal: {
                 String name = readNameConstant();
-                auto value = frame.mod.globals.find(name);
+                auto value = frame->mod->globals.find(name);
 
-                if (value == frame.mod.globals.end()) {
-                    error(formatStr("Couldn't find global named %s in current module", name));
+                if (value == frame->mod->globals.end()) {
+                    error(formatStr("Couldn't find global named '%s' in current module", name));
                     return Result{1};
                 }
 
@@ -229,10 +235,10 @@ Result Interpreter::run() {
 
             case OpSetGlobal: {
                 String name = readNameConstant();
-                auto value = frame.mod.globals.find(name);
+                auto value = frame->mod->globals.find(name);
 
-                if (value == frame.mod.globals.end()) {
-                    error(formatStr("Couldn't find global named %s in current module", name));
+                if (value == frame->mod->globals.end()) {
+                    error(formatStr("Couldn't find global named '%s' in current module", name));
                     return Result{1};
                 }
 
@@ -241,28 +247,90 @@ Result Interpreter::run() {
             };
 
             case OpGetLocal: {
-                push(frame.sp[readByte()]);
+                push(frame->sp[readByte()]);
                 break;
             }
 
             case OpSetLocal: {
-                frame.sp[readByte()] = peek(0);
+                frame->sp[readByte()] = peek(0);
+                break;
+            }
+
+            case OpGetProperty: {
+                break;
+            }
+
+            case OpSetProperty: {
+                break;
+            }
+
+            case OpGetUpValue: {
+                push(*frame->func->upValues[readByte()]->loc);
+                break;
+            }
+
+            case OpSetUpValue: {
+                *frame->func->upValues[readByte()]->loc = peek(0); 
+                break;
+            }
+
+            case OpPopLocals: {
+                u8 amount = readByte();
+                closeUpValues(stack.data() + stack.size() - amount);
+                stack.resize(stack.size() - amount);
                 break;
             }
 
             case OpJump: {
-                frame.ip += readShort();
+                frame->ip += readShort();
                 break;
             }
 
             case OpJumpBack: {
-                frame.ip -= readShort();
+                frame->ip -= readShort();
                 break;
             }
 
             case OpJumpPopIfFalse: {
                 u16 distance = readShort();
-                frame.ip += !isTruthy(pop()) * distance;
+                frame->ip += !isTruthy(pop()) * distance;
+                break;
+            }
+
+            case OpFunction: {
+                Shared<Function> func = std::make_shared<Function>();
+                func->mod = frame->mod;
+                func->prot = frame->chunk.constants.prototypes[readByte()];
+
+                for (int i = 0; i < func->prot.upValues; i++) {
+                    u8 index = readByte();
+                    u8 isLocal = readByte();
+                    if (isLocal) {
+                        func->upValues.push_back(captureUpValue(frame->sp + index));
+                    } else {
+                        func->upValues.push_back(frame->func->upValues[index]);
+                    }
+                }
+
+                push(func);
+                break;
+            };
+
+            case OpCall: {
+                Value value = pop();
+                if (!value.is<Shared<Function>>()) {
+                    error("Can only call functions");
+                    return Result{1};
+                }
+                u8 argc = readByte();
+                Shared<Function> func = value.get<Shared<Function>>();
+                if (argc != func->prot.argc) {
+                    error(formatStr("Expected %d argument%p, got %d", func->prot.argc, func->prot.argc > 1 ? "s" : "", argc));
+                    return Result{1};
+                }
+
+                newFrame(func->mod, func->prot.chunk, stack.data() + stack.size() - func->prot.argc - 1, func);
+                frame = getFrame();
                 break;
             }
 
@@ -283,24 +351,24 @@ void Interpreter::error(std::string msg) {
 }
 
 int Interpreter::pc() {
-    return frame()->ip - frame()->code.bytecode.data() - 1;
+    return getFrame()->ip - getFrame()->chunk.bytecode.data() - 1;
 }
 
 u8 Interpreter::readByte() {
-    return *frame()->ip++;
+    return *getFrame()->ip++;
 }
 
 u16 Interpreter::readShort() {
-    frame()->ip += 2;
-    return (u16)((frame()->ip[-2] << 8) | frame()->ip[-1]);
+    getFrame()->ip += 2;
+    return (u16)((getFrame()->ip[-2] << 8) | getFrame()->ip[-1]);
 }
 
 Number Interpreter::readNumberConstant() {
-    return frame()->code.constants.numbers[readByte()];
+    return getFrame()->chunk.constants.numbers[readByte()];
 }
 
 String Interpreter::readNameConstant() {
-    return frame()->code.constants.names[readByte()];
+    return getFrame()->chunk.constants.names[readByte()];
 }
 
 void Interpreter::push(Value value) {
@@ -322,8 +390,57 @@ Value Interpreter::peek(int offset) {
     return stack[stack.size() - offset - 1];
 }
 
-CallFrame* Interpreter::frame() {
+CallFrame* Interpreter::getFrame() {
     return &frames.back();
+}
+
+void Interpreter::newFrame(Shared<Module> mod, Chunk& chunk, Value* sp, Shared<Function> func) {
+    frames.push_back(CallFrame {
+        CallFrame{chunk.bytecode.data(), sp, mod, chunk, func}
+    });
+}
+
+Shared<UpValue> Interpreter::captureUpValue(Value* local) {
+    UpValue* prev = nullptr;
+    Shared<UpValue> current = openUpValues;
+
+    while (current != nullptr && current->loc > local) {
+        prev = current.get();
+        current = current->next;
+    }
+
+    if (current != nullptr && current->loc == local) {
+        return current;
+    }
+
+    Shared<UpValue> upValue = std::make_shared<UpValue>();
+    upValue->loc = local;
+    upValue->next = current;
+
+    if (prev == nullptr) {
+        openUpValues = upValue;
+    } else {
+        prev->next = upValue;
+    }
+
+    return upValue;
+}
+
+void Interpreter::closeUpValues(Value* minLoc) {
+    while (openUpValues != nullptr && openUpValues->loc >= minLoc) {
+        openUpValues->owned = *openUpValues->loc;
+        openUpValues->loc = &openUpValues->owned;
+        openUpValues = openUpValues->next;
+    }
+}
+
+void Interpreter::printStack() {
+    print(">=== Stack ===<");
+    for (int i = 0; i < (signed) stack.size(); i++) {
+        printf("%d: %s\n", i, getValueStr(stack[i]).c_str());
+    }
+    print(">=============<");
+
 }
 
 bool Interpreter::valuesEqual(Value& a, Value& b) {
@@ -368,8 +485,8 @@ bool Interpreter::isTruthy(Value& value) {
         case Value::which<None>(): {
             return false;
         }
-        case Value::which<Shared<Upvalue>>(): {
-            return isTruthy(*value.get<Shared<Upvalue>>()->loc);
+        case Value::which<Shared<UpValue>>(): {
+            return isTruthy(*value.get<Shared<UpValue>>()->loc);
         }
         default:
             return true;

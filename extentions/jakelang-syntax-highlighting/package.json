@@ -1,0 +1,25 @@
+{
+  "name": "jakelang-syntax-highlighting",
+  "displayName": "JakeLang Syntax Highlighting",
+  "description": "Syntax highlighting for jakelang",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "jake",
+      "aliases": ["JakeLang", "jake"],
+      "extensions": [".jake"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "jake",
+      "scopeName": "source.jake",
+      "path": "./syntaxes/jake.tmLanguage.json"
+    }]
+  }
+}

@@ -11,7 +11,7 @@ struct NumLiteral {
 };
 
 struct Identifier {
-    std::string value;
+    std::string name;
 };
 
 struct BoolLiteral {
@@ -30,6 +30,10 @@ struct BreakStmt {};
 
 struct ContinueStmt {};
 
+struct ExitStmt {
+    NumLiteral code;
+};
+
 // Variants
 
 using Expr = Variant<
@@ -42,13 +46,15 @@ using Expr = Variant<
     Ptr<struct AssignmentExpr>,
     Ptr<struct BinaryExpr>,
     Ptr<struct UnaryExpr>,
-    Ptr<struct BlockExpr>
+    Ptr<struct CallExpr>,
+    Ptr<struct PropertyExpr>
 >;
 
 using Stmt = Variant<
     Empty,
     BreakStmt,
     ContinueStmt,
+    ExitStmt,
     Ptr<struct ExprStmt>,
     Ptr<struct PrintStmt>,
     Ptr<struct IfStmt>,
@@ -57,11 +63,12 @@ using Stmt = Variant<
     Ptr<struct ForLoop>,
     Ptr<struct ReturnStmt>,
     Ptr<struct FuncDeclaration>,
-    Ptr<struct VarDeclaration>
+    Ptr<struct VarDeclaration>,
+    Ptr<struct BlockStmt>
 >;
 
 struct AssignmentExpr {
-    Identifier target;
+    Expr target;
     Expr expr;
 };
 
@@ -95,8 +102,14 @@ struct UnaryExpr {
     Expr expr;
 };
 
-struct BlockExpr {
-    std::vector<Stmt> body;
+struct CallExpr {
+    Expr target;
+    std::vector<Expr> args;
+};
+
+struct PropertyExpr {
+    Expr expr;
+    Identifier prop;
 };
 
 // Statements
@@ -134,6 +147,10 @@ struct ReturnStmt {
     Expr value;
 };
 
+struct BlockStmt {
+    std::vector<Stmt> body;
+};
+
 // Declarations
 
 struct FuncDeclaration {
@@ -143,7 +160,7 @@ struct FuncDeclaration {
 };
 
 struct VarDeclaration {
-    Identifier name;
+    Identifier target;
     Expr expr;
 };
 
