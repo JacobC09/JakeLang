@@ -4,6 +4,7 @@
 #define MAPBOX_VARIANT_OPTIMIZE_FOR_SPEED
 
 #include <memory>
+
 #include "mapbox/variant.hpp"
 
 template <typename... Types>

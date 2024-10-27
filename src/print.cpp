@@ -1,7 +1,8 @@
-#include "ast.h"
 #include "print.h"
+
+#include "compiler/compiler.h"
 #include "debug.h"
-#include "compiler.h"
+#include "syntax/ast.h"
 
 void printStmt(const Stmt& stmt, int indent);
 int disassembleInstruction(const Chunk& chunk, int index);
@@ -11,29 +12,28 @@ void printToken(const Token& token) {
         "LeftParen", "RightParen",
         "LeftBrace", "RightBrace",
         "Comma", "Dot", "Plus", "Minus",
-        "Slash", "Asterisk", "Carret", "Semicolon", 
+        "Slash", "Asterisk", "Carret", "Semicolon",
         "Percent",
 
         "Bang", "BangEqual",
         "Equal", "EqualEqual",
         "Greater", "GreaterEqual",
-        "Less", "LessEqual", "PlusEqual", 
+        "Less", "LessEqual", "PlusEqual",
         "MinusEqual", "AsteriskEqual", "SlashEqual",
         "CarretEqual",
 
         "Identifier", "String", "Number", "True", "False", "None",
 
-        "Print", "If", "Else", "Loop", "While", "For", "In", "Continue", 
+        "Print", "If", "Else", "Loop", "While", "For", "In", "Continue",
         "Break", "Func", "Var", "Exit", "And", "Or",
 
-        "Error", "EndOfFile"
-    };
+        "Error", "EndOfFile"};
 
     if (token.value.length() > 0) {
-        printf("Token{type=%s, value=\'%s\'}\n", names[(int) token.type], std::string(token.value).c_str());
+        printf("Token{type=%s, value=\'%s\'}\n", names[(int)token.type], std::string(token.value).c_str());
     } else {
-        print((int) token.type);
-        printf("Token{type=%s}\n", names[(int) token.type]);
+        print((int)token.type);
+        printf("Token{type=%s}\n", names[(int)token.type]);
     }
 }
 
@@ -52,7 +52,7 @@ void printExpr(const Expr& expr, int indent) {
             if (std::floor(val) != val) {
                 printf("NumLiteral{%f}\n", val);
             } else {
-                printf("NumLiteral{%d}\n", (int) val);
+                printf("NumLiteral{%d}\n", (int)val);
             }
 
             break;
@@ -91,15 +91,14 @@ void printExpr(const Expr& expr, int indent) {
 
         case Expr::which<Ptr<BinaryExpr>>(): {
             auto val = expr.get<Ptr<BinaryExpr>>();
-            
-            static const char* names[] = { 
-                "Add", "Subtract",  "Modulo", "Multiply", 
-                "Divide", "Exponent", "GreaterThan", 
-                "LessThan", "GreaterThanOrEq", 
-                "LessThanOrEq", "Equal", "NotEqual", "And", "Or"
-            };
 
-            printf("BinaryExpr{%s}\n", names[(int) val->op]);
+            static const char* names[] = {
+                "Add", "Subtract", "Modulo", "Multiply",
+                "Divide", "Exponent", "GreaterThan",
+                "LessThan", "GreaterThanOrEq",
+                "LessThanOrEq", "Equal", "NotEqual", "And", "Or"};
+
+            printf("BinaryExpr{%s}\n", names[(int)val->op]);
             printExpr(val->left, indent + 1);
             printExpr(val->right, indent + 1);
             break;
@@ -108,11 +107,12 @@ void printExpr(const Expr& expr, int indent) {
         case Expr::which<Ptr<UnaryExpr>>(): {
             auto val = expr.get<Ptr<UnaryExpr>>();
 
-            static const char* names[] = { 
-                "Negative", "Negate",
+            static const char* names[] = {
+                "Negative",
+                "Negate",
             };
 
-            printf("BinaryExpr{%s}\n", names[(int) val->op]);
+            printf("BinaryExpr{%s}\n", names[(int)val->op]);
             printExpr(val->expr, indent + 1);
             break;
         }
@@ -135,12 +135,12 @@ void printExpr(const Expr& expr, int indent) {
             printExpr(val->expr, indent + 1);
             break;
         }
-        
+
         case Expr::which<Empty>(): {
             print("Empty{}");
             break;
         }
-        
+
         default:
             break;
     }
@@ -175,7 +175,7 @@ void printStmt(const Stmt& stmt, int indent) {
             }
             break;
         }
-        
+
         case Stmt::which<Ptr<IfStmt>>(): {
             auto val = stmt.get<Ptr<IfStmt>>();
             print("IfStmt{}");
@@ -317,22 +317,21 @@ int simpleInstruction(const char* name, int index) {
     return index + 1;
 }
 
-int constantInstruction(const char* name, int index, const Chunk& chunk, bool isName=false) {
+int constantInstruction(const char* name, int index, const Chunk& chunk, bool isName = false) {
     int constant = chunk.bytecode[index + 1];
 
     if (isName) {
         printf("%-16s %s (%d)\n", name, chunk.constants.names[constant].c_str(), constant);
     } else {
         double val = chunk.constants.numbers[constant];
-        if (val == (int) val) {
-            printf("%-16s %4d (%d)\n", name, (int) val, constant);
+        if (val == (int)val) {
+            printf("%-16s %4d (%d)\n", name, (int)val, constant);
         } else {
             printf("%-16s %4lf (%d)\n", name, val, constant);
         }
     }
 
     return index + 2;
-
 }
 
 int byteInstruction(const char* name, int index, const Chunk& chunk) {
@@ -340,7 +339,7 @@ int byteInstruction(const char* name, int index, const Chunk& chunk) {
     return index + 2;
 }
 
-int jumpInstruction(const char* name, int index, const Chunk& chunk, bool back=false) {
+int jumpInstruction(const char* name, int index, const Chunk& chunk, bool back = false) {
     int val = chunk.bytecode[index + 1] << 8 | chunk.bytecode[index + 2];
     printf("%-16s %4d to %d\n", name, val, index + (back ? -val : val) + 3);
     return index + 3;
@@ -357,7 +356,7 @@ int functionInstruction(const char* name, int index, const Chunk& chunk) {
         printf("UpValue >> index: %d, isLocal: %s\n", upValueIndex, isLocal ? "true" : "false");
     }
 
-    for (int i = 0; i < (signed) prototype.chunk.bytecode.size();) {
+    for (int i = 0; i < (signed)prototype.chunk.bytecode.size();) {
         i = disassembleInstruction(prototype.chunk, i);
     }
 
@@ -368,7 +367,7 @@ int functionInstruction(const char* name, int index, const Chunk& chunk) {
 
 int disassembleInstruction(const Chunk& chunk, int index) {
     printf("%04d ", index);
-    
+
     switch (chunk.bytecode[index]) {
         case OpExit:
             index = byteInstruction("Exit", index, chunk);
@@ -489,7 +488,7 @@ int disassembleInstruction(const Chunk& chunk, int index) {
         case OpCall:
             index = byteInstruction("Call", index, chunk);
             break;
-            
+
         default:
             print("Unknown Instruction");
             index++;
@@ -503,30 +502,29 @@ void printChunk(const Chunk& chunk, std::string name) {
     if (!name.size()) name = "Chunk";
 
     printf(">=== %s ===<\n", name.c_str());
-    
-    for (int index = 0; index < (signed) chunk.bytecode.size();) {
+
+    for (int index = 0; index < (signed)chunk.bytecode.size();) {
         index = disassembleInstruction(chunk, index);
     }
 
     printf(">====%s====<\n", std::string(name.size(), '=').c_str());
-
 }
 
 std::string getTypename(int which) {
     switch (which) {
-        case Value::which<Number>(): 
-            return  "Number";
-        case Value::which<String>(): 
-            return  "String";
-        case Value::which<Boolean>(): 
-            return  "Boolean";
-        case Value::which<None>(): 
-            return  "None";
-        case Value::which<Shared<UpValue>>(): 
+        case Value::which<Number>():
+            return "Number";
+        case Value::which<String>():
+            return "String";
+        case Value::which<Boolean>():
+            return "Boolean";
+        case Value::which<None>():
+            return "None";
+        case Value::which<Shared<UpValue>>():
             return "UpValue";
-        case Value::which<Shared<Function>>(): 
+        case Value::which<Shared<Function>>():
             return "Function";
-        case Value::which<Shared<Module>>(): 
+        case Value::which<Shared<Module>>():
             return "Module";
         default:
             return "Unknown";

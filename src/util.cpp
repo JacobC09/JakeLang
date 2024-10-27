@@ -1,8 +1,8 @@
-#include <string>
 #include <cstdarg>
 #include <iomanip>
-#include <sstream>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 std::string formatString(const std::string& str, int width, int precision, bool leftAlign, bool zeroPad) {
     std::ostringstream oss;

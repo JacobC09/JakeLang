@@ -16,7 +16,7 @@ private:
     bool check(TokenType type);
     bool match(TokenType type);
 
-    template<typename... Args>
+    template <typename... Args>
     bool match(TokenType type, Args... args);
     bool isFinished();
 
@@ -37,7 +37,7 @@ private:
     StrLiteral string();
     Identifier identifer();
     Expr grouping();
-    
+
     std::vector<Expr> exprList();
     std::vector<Stmt> block();
 
@@ -52,7 +52,7 @@ private:
 
     Stmt funcDeclaration();
     Stmt varDeclaration();
-    
+
 private:
     bool hadError;
     Token cur;

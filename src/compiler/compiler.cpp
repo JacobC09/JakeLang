@@ -1,14 +1,13 @@
-#include "compiler.h"
+#include "compiler/compiler.h"
 
 #include <cstring>
 
 Chunk Compiler::compile(Ast& ast) {
-    hadError = false;
     newChunk();
+    hadError = false;
     chunkData->global = true;
     chunkData->localOffset = 0;
     body(ast.body);
-
     emitByte(OpExit, 0);
     return endChunk();
 }
@@ -46,7 +45,7 @@ void Compiler::endScope() {
         if (local.depth < chunkData->scopeDepth) {
             break;
         }
-            
+
         localCount++;
     }
 
@@ -139,14 +138,14 @@ int Compiler::addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool isLoc
             return i;
         }
     }
-    
+
     int count = chunk->upValues.size();
     if (count > UINT8_MAX) {
         error("Too many captured locals in scope");
         return -1;
     }
 
-    chunk->upValues.push_back(UpValueData {index, isLocal});
+    chunk->upValues.push_back(UpValueData{index, isLocal});
     return count;
 }
 
@@ -266,7 +265,6 @@ void Compiler::body(std::vector<Stmt>& stmts) {
     }
 }
 
-
 void Compiler::breakStmt() {
     if (chunkData->loopData == nullptr) {
         error("Cannot use break statement outside of loop");
@@ -290,7 +288,7 @@ void Compiler::exitStmt(ExitStmt& stmt) {
         error(formatStr("Error code can't be greater than %d", UINT8_MAX));
         return;
     }
-    emitByte(OpExit, (u8) stmt.code.value);
+    emitByte(OpExit, (u8)stmt.code.value);
 }
 
 void Compiler::returnStmt(Ptr<ReturnStmt> stmt) {
@@ -304,7 +302,7 @@ void Compiler::returnStmt(Ptr<ReturnStmt> stmt) {
 }
 
 void Compiler::printStmt(Ptr<PrintStmt>& stmt) {
-    for (int i = (signed) stmt->exprs.size() - 1; i >=0; i--) {
+    for (int i = (signed)stmt->exprs.size() - 1; i >= 0; i--) {
         expression(stmt->exprs[i]);
     }
     emitByte(OpPrint, stmt->exprs.size());
@@ -352,9 +350,9 @@ void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
     emitByte(OpFunction, (signed)getChunk()->constants.prototypes.size());
     newChunk();
     beginScope();
-    
+
     chunkData->localOffset = 1;
-    
+
     for (auto& arg : stmt->args) {
         addLocal(arg.name);
     }
@@ -370,13 +368,13 @@ void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
 
     for (auto& upValue : chunkData->upValues) {
         chunkData->enclosing->chunk.bytecode.push_back(upValue.index);
-        chunkData->enclosing->chunk.bytecode.push_back((u8) upValue.isLocal);
+        chunkData->enclosing->chunk.bytecode.push_back((u8)upValue.isLocal);
     }
 
     Prototype prot = {
         stmt->name.name,
-        (u8) stmt->args.size(),
-        (u8) chunkData->upValues.size(),
+        (u8)stmt->args.size(),
+        (u8)chunkData->upValues.size(),
         endChunk(),
     };
 
@@ -564,7 +562,6 @@ void Compiler::assignment(Ptr<AssignmentExpr>& assignment) {
             error("Invalid assignment target");
             break;
     }
-
 }
 
 void Compiler::identifier(Identifier& id, bool get) {
@@ -592,7 +589,6 @@ void Compiler::emitByte(u16 value) {
     emitByte((u8)((value >> 8) & 0xff));
     emitByte((u8)(value & 0xff));
 }
-
 
 template <typename First>
 void Compiler::emitByte(First value) {

@@ -1,5 +1,6 @@
 #pragma once
-#include "ast.h"
+#include "compiler/bytecode.h"
+#include "syntax/ast.h"
 #include "util.h"
 
 struct Prototype;
@@ -36,14 +37,14 @@ struct LoopData;
 struct ChunkData;
 
 struct ChunkData {
-    std::unique_ptr<ChunkData> enclosing;
-    std::unique_ptr<LoopData> loopData;
     int scopeDepth;
     int localOffset;
     bool global;
     Chunk chunk;
     std::vector<Local> locals;
     std::vector<UpValueData> upValues;
+    std::unique_ptr<LoopData> loopData;
+    std::unique_ptr<ChunkData> enclosing;
 };
 
 struct LoopData {
@@ -51,7 +52,6 @@ struct LoopData {
     int start;
     std::vector<int> breaks;
 };
-
 
 class Compiler {
 public:
@@ -61,21 +61,36 @@ public:
     bool failed();
 
 private:
+    // Chunk
     Chunk* getChunk();
     void newChunk();
     Chunk endChunk();
+
+    // Scope
     void beginScope();
     void endScope();
+
+    // Loop
     void beginLoop();
     void endLoop();
+
+    // Error
     void error(std::string msg);
+
+    // Constants
     int makeNumberConstant(double value);
     int makeNameConstant(std::string value);
+
+    // Locals
     void addLocal(std::string name);
     int addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool isLocal);
     int findLocal(std::unique_ptr<ChunkData>& chunk, std::string name);
     int findUpValue(std::unique_ptr<ChunkData>& chunk, std::string name);
+
+    // Variables
     void declare(std::string name);
+
+    // Statements
     void body(std::vector<Stmt>& stmts);
     void breakStmt();
     void continueStmt();
@@ -88,65 +103,25 @@ private:
     void forLoop(Ptr<ForLoop>& stmt);
     void funcDeclaration(Ptr<FuncDeclaration>& stmt);
     void varDeclaration(Ptr<VarDeclaration>& stmt);
+
+    // Expressions
     void expression(Expr expr);
     void assignment(Ptr<AssignmentExpr>& assignment);
     void identifier(Identifier& id, bool get);
 
+    // Emit Byte
     void emitByte(u8 value);
     void emitByte(u16 value);
-    template<typename First>
+    template <typename First>
     void emitByte(First value);
-    template<typename First, typename ... Rest>
-    void emitByte(First byte, Rest ... rest);
-    
+    template <typename First, typename... Rest>
+    void emitByte(First byte, Rest... rest);
+
+    // Emit Jump
     void emitJumpBackwards(u8 jump, int where);
     int emitJumpForwards(u8 jump);
     void patchJump(int index);
 
-    std::unique_ptr<ChunkData> chunkData;
-
     bool hadError;
-};
-
-enum Instructions : u8 {
-    OpExit,
-    OpReturn,
-    OpPop,
-    OpName,
-    OpNumber,
-    OpByteNumber,
-    OpTrue,
-    OpFalse,
-    OpNone,
-    OpAdd,
-    OpSubtract,
-    OpModulous,
-    OpMultiply,
-    OpDivide,
-    OpExponent,
-    OpEqual,
-    OpGreater,
-    OpLess,
-    OpGreaterThanOrEq,
-    OpLessThanOrEq,
-    OpNot,
-    OpNegate,
-    OpPrint,
-    OpDefineGlobal,
-    OpGetGlobal,
-    OpSetGlobal,
-    OpGetLocal,
-    OpSetLocal,
-    OpGetProperty,
-    OpSetProperty,
-    OpGetUpValue,
-    OpSetUpValue,
-    OpPopLocals,
-    OpJump,
-    OpJumpBack,
-    OpJumpIfTrue,
-    OpJumpIfFalse,
-    OpJumpPopIfFalse,
-    OpFunction,
-    OpCall,
+    std::unique_ptr<ChunkData> chunkData;
 };

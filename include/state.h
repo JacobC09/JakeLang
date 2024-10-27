@@ -1,6 +1,7 @@
 #pragma once
-#include <string>
-#include "value.h"
+#include <map>
+
+#include "interpreter/value.h"
 
 enum ExitCode : int {
     Success,
@@ -17,6 +18,4 @@ public:
 
     State();
     Result run(std::string source);
-
-    // Module loadModule(std::string name);
 };

@@ -1,8 +1,9 @@
 #pragma once
+#include "compiler/compiler.h"
 #include "util.h"
 #include "variant.h"
-#include "compiler.h"
-// #include "interpreter.h"
+
+class BuiltInHelper;
 
 struct None {};
 
@@ -18,8 +19,14 @@ using Value = Variant<
     Shared<struct UpValue>,
     Shared<struct Function>,
     Shared<struct BuiltInFunction>,
-    Shared<struct Module>
->;
+    Shared<struct Module>>;
+
+using BuiltInFunctionPtr = void (*)(BuiltInHelper helper, int argc);
+
+struct BuiltInFunction {
+    std::string name;
+    BuiltInFunctionPtr ptr;
+};
 
 struct UpValue {
     Value* loc;
@@ -31,16 +38,6 @@ struct Function {
     Prototype prot;
     Shared<Module> mod;
     std::vector<Shared<UpValue>> upValues;
-};
-
-using BuiltInFunctionPtr = bool(*)(class Interpreter*, Value* sp, int argc);
-
-struct BuiltInFunction {
-    BuiltInFunction() = default;
-    BuiltInFunction(std::string name, BuiltInFunctionPtr func) : name(name), func(func) {}
-
-    std::string name;
-    BuiltInFunctionPtr func;
 };
 
 struct Module {

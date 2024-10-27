@@ -7,14 +7,15 @@ set(CMAKE_BUILD_TYPE Debug)
 
 add_executable(jake-lang 
     "src/main.cpp"
+    "src/compiler/compiler.cpp"
+    "src/interpreter/interpreter.cpp"
+    "src/syntax/scanner.cpp"
+    "src/syntax/parser.cpp"
     "src/debug.cpp"
     "src/state.cpp"
-    "src/scanner.cpp"
-    "src/parser.cpp"
     "src/util.cpp"
     "src/print.cpp"
-    "src/compiler.cpp"
-    "src/interpreter.cpp"
+    "src/builtins.cpp"
 )
 
 # ---------- Linker Config ---------- #

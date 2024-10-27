@@ -1,4 +1,6 @@
-#include "interpreter.h"
+#include "interpreter/interpreter.h"
+
+#include "builtins.h"
 #include "print.h"
 
 Interpreter::Interpreter(State& state) : state(state) {
@@ -418,11 +420,13 @@ bool Interpreter::callValue(Value value) {
 
         case Value::which<Shared<BuiltInFunction>>(): {
             int stackSize = stack.size();
-            bool result = value.get<Shared<BuiltInFunction>>()->func(this, sp, argc);
+            value.get<Shared<BuiltInFunction>>()->ptr(BuiltInHelper(this, sp), argc);
+
             if (argc) {
                 stack.resize(stackSize - argc);
             }
-            return result;
+
+            return !hadError;
         }
 
         default:

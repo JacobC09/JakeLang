@@ -1,4 +1,5 @@
-#include "scanner.h"
+#include "syntax/scanner.h"
+
 #include "debug.h"
 
 Scanner::Scanner(std::string src) {
@@ -21,32 +22,46 @@ Token Scanner::nextToken() {
     if (c == '\"' || c == '\'') return scanString();
 
     switch (c) {
-        case '(': return makeToken(TokenType::LeftParen);
-        case ')': return makeToken(TokenType::RightParen);
-        case '{': return makeToken(TokenType::LeftBrace);
-        case '}': return makeToken(TokenType::RightBrace);
-        case ',': return makeToken(TokenType::Comma);
-        case ';': return makeToken(TokenType::Semicolon);
-        case '+': return makeToken(match('=') ? TokenType::PlusEqual : TokenType::Plus);
-        case '-': return makeToken(match('=') ? TokenType::MinusEqual : TokenType::Minus);
-        case '/': return makeToken(match('=') ? TokenType::SlashEqual : TokenType::Slash);
-        case '*': return makeToken(match('=') ? TokenType::AsteriskEqual : TokenType::Asterisk);
-        case '^': return makeToken(match('=') ? TokenType::CarretEqual : TokenType::Carret);
-        case '!': return makeToken(match('=') ? TokenType::BangEqual : TokenType::Bang);
-        case '=': return makeToken(match('=') ? TokenType::EqualEqual : TokenType::Equal);
-        case '>': return makeToken(match('=') ? TokenType::GreaterEqual : TokenType::Greater);
-        case '<': return makeToken(match('=') ? TokenType::LessEqual : TokenType::Less);
-            
+        case '(':
+            return makeToken(TokenType::LeftParen);
+        case ')':
+            return makeToken(TokenType::RightParen);
+        case '{':
+            return makeToken(TokenType::LeftBrace);
+        case '}':
+            return makeToken(TokenType::RightBrace);
+        case ',':
+            return makeToken(TokenType::Comma);
+        case ';':
+            return makeToken(TokenType::Semicolon);
+        case '+':
+            return makeToken(match('=') ? TokenType::PlusEqual : TokenType::Plus);
+        case '-':
+            return makeToken(match('=') ? TokenType::MinusEqual : TokenType::Minus);
+        case '/':
+            return makeToken(match('=') ? TokenType::SlashEqual : TokenType::Slash);
+        case '*':
+            return makeToken(match('=') ? TokenType::AsteriskEqual : TokenType::Asterisk);
+        case '^':
+            return makeToken(match('=') ? TokenType::CarretEqual : TokenType::Carret);
+        case '!':
+            return makeToken(match('=') ? TokenType::BangEqual : TokenType::Bang);
+        case '=':
+            return makeToken(match('=') ? TokenType::EqualEqual : TokenType::Equal);
+        case '>':
+            return makeToken(match('=') ? TokenType::GreaterEqual : TokenType::Greater);
+        case '<':
+            return makeToken(match('=') ? TokenType::LessEqual : TokenType::Less);
+
         case '.':
             if (isdigit(peek()))
                 return scanNumber();
             return makeToken(TokenType::Dot);
-        
+
         default:
             return makeToken(TokenType::Error);
     }
 };
-
 
 char Scanner::advance() {
     current++;
@@ -72,7 +87,7 @@ bool Scanner::match(char expected) {
     if (*current != expected) return false;
 
     current++;
-    return true; 
+    return true;
 }
 
 void Scanner::skipWhiteSpace() {
@@ -87,7 +102,7 @@ void Scanner::skipWhiteSpace() {
                 line++;
                 advance();
                 break;
-            
+
             case '#':
                 while (peek() != '\n' && !isAtEnd()) advance();
                 break;
@@ -101,7 +116,7 @@ void Scanner::skipWhiteSpace() {
 Token Scanner::makeToken(TokenType type) {
     int tokenLength = current - start;
 
-    return Token {type, std::string_view(start, tokenLength), line};
+    return Token{type, std::string_view(start, tokenLength), line};
 }
 
 Token Scanner::scanNumber() {

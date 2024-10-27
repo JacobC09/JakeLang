@@ -1,4 +1,4 @@
-#include "parser.h"
+#include "syntax/parser.h"
 
 #include "debug.h"
 #include "print.h"
@@ -249,7 +249,7 @@ Expr Parser::post() {
     while (match(TokenType::Dot, TokenType::LeftParen)) {
         if (prev.type == TokenType::Dot) {
             consume(TokenType::Identifier, "Expected identifier name after '.'");
-            expr = PropertyExpr{expr, identifer()};            
+            expr = PropertyExpr{expr, identifer()};
         } else {
             std::vector<Expr> args;
             if (!check(TokenType::RightParen)) {

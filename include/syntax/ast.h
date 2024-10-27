@@ -1,10 +1,12 @@
 #pragma once
 #include <vector>
+
 #include "variant.h"
 
 struct Empty {};
-
-// Literals
+struct NoneLiteral {};
+struct BreakStmt {};
+struct ContinueStmt {};
 
 struct NumLiteral {
     double value;
@@ -22,19 +24,9 @@ struct StrLiteral {
     std::string value;
 };
 
-struct NoneLiteral {};
-
-// Literal Statments
-
-struct BreakStmt {};
-
-struct ContinueStmt {};
-
 struct ExitStmt {
     NumLiteral code;
 };
-
-// Variants
 
 using Expr = Variant<
     Empty,
@@ -47,8 +39,7 @@ using Expr = Variant<
     Ptr<struct BinaryExpr>,
     Ptr<struct UnaryExpr>,
     Ptr<struct CallExpr>,
-    Ptr<struct PropertyExpr>
->;
+    Ptr<struct PropertyExpr> >;
 
 using Stmt = Variant<
     Empty,
@@ -64,8 +55,13 @@ using Stmt = Variant<
     Ptr<struct ReturnStmt>,
     Ptr<struct FuncDeclaration>,
     Ptr<struct VarDeclaration>,
-    Ptr<struct BlockStmt>
->;
+    Ptr<struct BlockStmt> >;
+
+struct Ast {
+    std::vector<Stmt> body;
+};
+
+// Expressions
 
 struct AssignmentExpr {
     Expr target;
@@ -154,8 +150,6 @@ struct BlockStmt {
     std::vector<Stmt> body;
 };
 
-// Declarations
-
 struct FuncDeclaration {
     Identifier name;
     std::vector<Identifier> args;
@@ -165,10 +159,4 @@ struct FuncDeclaration {
 struct VarDeclaration {
     Identifier target;
     Expr expr;
-};
-
-// Ast
-
-struct Ast {
-    std::vector<Stmt> body;
 };

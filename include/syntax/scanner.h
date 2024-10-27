@@ -3,28 +3,63 @@
 
 enum class TokenType {
     // Single Char
-    LeftParen, RightParen,
-    LeftBrace, RightBrace,
-    Comma, Dot, Plus, Minus,
-    Slash, Asterisk, Carret, Semicolon, Percent,
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Dot,
+    Plus,
+    Minus,
+    Slash,
+    Asterisk,
+    Carret,
+    Semicolon,
+    Percent,
 
     // One or Two Char
-    Bang, BangEqual,
-    Equal, EqualEqual,
-    Greater, GreaterEqual,
-    Less, LessEqual, PlusEqual, 
-    MinusEqual, AsteriskEqual, SlashEqual,
+    Bang,
+    BangEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    PlusEqual,
+    MinusEqual,
+    AsteriskEqual,
+    SlashEqual,
     CarretEqual,
 
     // Literals
-    Identifier, String, Number, True, False, None,
+    Identifier,
+    String,
+    Number,
+    True,
+    False,
+    None,
 
     // Keywords
-    Print, If, Else, Loop, While, For, In, Continue, Break, Return, Func, Var, Exit, And, Or,
+    Print,
+    If,
+    Else,
+    Loop,
+    While,
+    For,
+    In,
+    Continue,
+    Break,
+    Return,
+    Func,
+    Var,
+    Exit,
+    And,
+    Or,
 
-    Error, EndOfFile
+    Error,
+    EndOfFile
 };
-
 
 struct Token {
     TokenType type;
