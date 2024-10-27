@@ -76,6 +76,7 @@ struct BinaryExpr {
     enum Operation {
         Add,
         Subtract,
+        Modulous,
         Multiply,
         Divide,
         Exponent,
@@ -84,7 +85,9 @@ struct BinaryExpr {
         GreaterThanOrEq,
         LessThanOrEq,
         Equal,
-        NotEqual
+        NotEqual,
+        And,
+        Or
     };
 
     Operation op;

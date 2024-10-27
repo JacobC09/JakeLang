@@ -77,7 +77,7 @@ Expr Parser::expression() {
 }
 
 Expr Parser::assignment() {
-    Expr target = equality();
+    Expr target = _or();
 
     while (match(TokenType::Equal, TokenType::PlusEqual, TokenType::MinusEqual, TokenType::SlashEqual, TokenType::AsteriskEqual, TokenType::CarretEqual)) {
         if (target.which() != Expr::which<Identifier>()) {
@@ -86,7 +86,7 @@ Expr Parser::assignment() {
         }
 
         TokenType opToken = prev.type;
-        Expr right = equality();
+        Expr right = _or();
 
         if (opToken != TokenType::Equal) {
             BinaryExpr::Operation op;
@@ -119,6 +119,26 @@ Expr Parser::assignment() {
     }
 
     return target;
+}
+
+Expr Parser::_or() {
+    Expr expr = _and();
+
+    while (match(TokenType::Or)) {
+        expr = BinaryExpr{BinaryExpr::Operation::Or, expr, _and()};
+    }
+
+    return expr;
+}
+
+Expr Parser::_and() {
+    Expr expr = equality();
+
+    while (match(TokenType::And)) {
+        expr = BinaryExpr{BinaryExpr::Operation::And, expr, equality()};
+    }
+
+    return expr;
 }
 
 Expr Parser::equality() {
@@ -162,8 +182,22 @@ Expr Parser::comparison() {
 Expr Parser::term() {
     Expr expr = factor();
 
-    while (match(TokenType::Plus, TokenType::Minus)) {
-        expr = BinaryExpr{prev.type == TokenType::Plus ? BinaryExpr::Operation::Add : BinaryExpr::Operation::Subtract, expr, factor()};
+    while (match(TokenType::Plus, TokenType::Minus, TokenType::Percent)) {
+        BinaryExpr::Operation op;
+        switch (prev.type) {
+            case TokenType::Plus:
+                op = BinaryExpr::Operation::Add;
+                break;
+            case TokenType::Minus:
+                op = BinaryExpr::Operation::Subtract;
+                break;
+            case TokenType::Percent:
+                op = BinaryExpr::Operation::Modulous;
+                break;
+            default:
+                break;
+        }
+        expr = BinaryExpr{op, expr, factor()};
     }
 
     return expr;

@@ -167,6 +167,10 @@ Token Scanner::scanIdentifer() {
         token.type = TokenType::Var;
     } else if (token.value.compare("exit") == 0) {
         token.type = TokenType::Exit;
+    } else if (token.value.compare("and") == 0) {
+        token.type = TokenType::And;
+    } else if (token.value.compare("or") == 0) {
+        token.type = TokenType::Or;
     }
 
     return token;

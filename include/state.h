@@ -13,12 +13,10 @@ struct Result {
 
 class State {
 public:
-    State();
+    Shared<Module> base;
 
+    State();
     Result run(std::string source);
 
     // Module loadModule(std::string name);
-
-private:
-    Shared<Module> base;
 };

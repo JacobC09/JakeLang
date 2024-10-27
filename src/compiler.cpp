@@ -208,7 +208,7 @@ void Compiler::body(std::vector<Stmt>& stmts) {
 
             case Stmt::which<Ptr<ExprStmt>>(): {
                 expression(stmt.get<Ptr<ExprStmt>>()->expr);
-                emitByte(OpPop, 1);
+                emitByte(OpPop);
                 break;
             }
 
@@ -300,12 +300,12 @@ void Compiler::returnStmt(Ptr<ReturnStmt> stmt) {
     }
 
     expression(stmt->value);
-    emitByte(OpSetLocal, 0, OpPop, 1);
+    emitByte(OpSetLocal, 0, OpPop);
 }
 
 void Compiler::printStmt(Ptr<PrintStmt>& stmt) {
-    for (auto& expr : stmt->exprs) {
-        expression(expr);
+    for (int i = (signed) stmt->exprs.size() - 1; i >=0; i--) {
+        expression(stmt->exprs[i]);
     }
     emitByte(OpPrint, stmt->exprs.size());
 }
@@ -435,6 +435,22 @@ void Compiler::expression(Expr expr) {
         case Expr::which<Ptr<BinaryExpr>>(): {
             auto& binaryExpr = expr.get<Ptr<BinaryExpr>>();
 
+            if (binaryExpr->op == BinaryExpr::Operation::And) {
+                expression(binaryExpr->left);
+                int jump = emitJumpForwards(OpJumpIfFalse);
+                emitByte(OpPop);
+                expression(binaryExpr->right);
+                patchJump(jump);
+                break;
+            } else if (binaryExpr->op == BinaryExpr::Operation::Or) {
+                expression(binaryExpr->left);
+                int jump = emitJumpForwards(OpJumpIfTrue);
+                emitByte(OpPop);
+                expression(binaryExpr->right);
+                patchJump(jump);
+                break;
+            }
+
             expression(binaryExpr->left);
             expression(binaryExpr->right);
 
@@ -444,6 +460,9 @@ void Compiler::expression(Expr expr) {
                     break;
                 case BinaryExpr::Operation::Subtract:
                     emitByte(OpSubtract);
+                    break;
+                case BinaryExpr::Operation::Modulous:
+                    emitByte(OpModulous);
                     break;
                 case BinaryExpr::Operation::Multiply:
                     emitByte(OpMultiply);
@@ -472,6 +491,8 @@ void Compiler::expression(Expr expr) {
                 case BinaryExpr::Operation::NotEqual:
                     emitByte(OpEqual);
                     emitByte(OpNot);
+                    break;
+                default:
                     break;
             }
 

@@ -6,7 +6,7 @@ enum class TokenType {
     LeftParen, RightParen,
     LeftBrace, RightBrace,
     Comma, Dot, Plus, Minus,
-    Slash, Asterisk, Carret, Semicolon,
+    Slash, Asterisk, Carret, Semicolon, Percent,
 
     // One or Two Char
     Bang, BangEqual,
@@ -20,7 +20,7 @@ enum class TokenType {
     Identifier, String, Number, True, False, None,
 
     // Keywords
-    Print, If, Else, Loop, While, For, In, Continue, Break, Return, Func, Var, Exit,
+    Print, If, Else, Loop, While, For, In, Continue, Break, Return, Func, Var, Exit, And, Or,
 
     Error, EndOfFile
 };

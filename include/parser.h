@@ -18,11 +18,12 @@ private:
 
     template<typename... Args>
     bool match(TokenType type, Args... args);
-
     bool isFinished();
 
     Expr expression();
     Expr assignment();
+    Expr _or();
+    Expr _and();
     Expr equality();
     Expr comparison();
     Expr term();

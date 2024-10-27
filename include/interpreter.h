@@ -1,3 +1,4 @@
+#pragma once
 #include "value.h"
 #include "state.h"
 
@@ -19,7 +20,6 @@ public:
     Result interpret(Shared<Module> mod, Chunk& chunk);
     Result run();
 
-private:
     void error(std::string msg);
     int pc();
     u8 readByte();
@@ -29,6 +29,7 @@ private:
     void push(Value value);
     Value pop();
     Value peek(int offset);
+    bool callValue(Value value);
     CallFrame* getFrame();
     void newFrame(Shared<Module> mod, Chunk& chunk, Value* sp, Shared<Function> func);
     Shared<UpValue> captureUpValue(Value* local);

@@ -27,7 +27,7 @@
             "patterns": [
                 {
                     "name": "keyword.control.jake",
-                    "match": "\\b(print|if|else|loop|while|for|in|continue|break|return|func|var|exit)\\b"
+                    "match": "\\b(print|if|else|loop|while|for|in|continue|break|return|func|var|exit|and|or)\\b"
                 }
             ]
         },

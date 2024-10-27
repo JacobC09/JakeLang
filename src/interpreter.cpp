@@ -1,5 +1,4 @@
 #include "interpreter.h"
-
 #include "print.h"
 
 Interpreter::Interpreter(State& state) : state(state) {
@@ -22,7 +21,7 @@ Result Interpreter::run() {
 
         switch (instruction) {
             case OpExit: {
-                return Result {(int) readByte()};
+                return Result{(int)readByte()};
             }
 
             case OpReturn: {
@@ -33,12 +32,7 @@ Result Interpreter::run() {
             }
 
             case OpPop: {
-                u8 amount = readByte();
-                if (amount > (signed)stack.size()) {
-                    error("Tried to pop on empty stack");
-                    return Result{1};
-                }
-                stack.resize(stack.size() - amount);
+                stack.pop_back();
                 break;
             }
 
@@ -98,6 +92,19 @@ Result Interpreter::run() {
                 }
 
                 push(a.get<Number>() - b.get<Number>());
+                break;
+            }
+
+            case OpModulous: {
+                Value b = pop();
+                Value a = pop();
+
+                if (!a.is<Number>() || !b.is<Number>()) {
+                    error("Can only modulous numbers");
+                    return Result{1};
+                }
+
+                push(std::fmod(a.get<Number>(), b.get<Number>()));
                 break;
             }
 
@@ -270,7 +277,7 @@ Result Interpreter::run() {
             }
 
             case OpSetUpValue: {
-                *frame->func->upValues[readByte()]->loc = peek(0); 
+                *frame->func->upValues[readByte()]->loc = peek(0);
                 break;
             }
 
@@ -288,6 +295,18 @@ Result Interpreter::run() {
 
             case OpJumpBack: {
                 frame->ip -= readShort();
+                break;
+            }
+
+            case OpJumpIfTrue: {
+                u16 distance = readShort();
+                frame->ip += isTruthy(peek(0)) * distance;
+                break;
+            }
+
+            case OpJumpIfFalse: {
+                u16 distance = readShort();
+                frame->ip += !isTruthy(peek(0)) * distance;
                 break;
             }
 
@@ -317,19 +336,10 @@ Result Interpreter::run() {
             };
 
             case OpCall: {
-                Value value = pop();
-                if (!value.is<Shared<Function>>()) {
-                    error("Can only call functions");
+                bool success = callValue(pop());
+                if (!success) {
                     return Result{1};
                 }
-                u8 argc = readByte();
-                Shared<Function> func = value.get<Shared<Function>>();
-                if (argc != func->prot.argc) {
-                    error(formatStr("Expected %d argument%p, got %d", func->prot.argc, func->prot.argc > 1 ? "s" : "", argc));
-                    return Result{1};
-                }
-
-                newFrame(func->mod, func->prot.chunk, stack.data() + stack.size() - func->prot.argc - 1, func);
                 frame = getFrame();
                 break;
             }
@@ -390,14 +400,44 @@ Value Interpreter::peek(int offset) {
     return stack[stack.size() - offset - 1];
 }
 
+bool Interpreter::callValue(Value value) {
+    u8 argc = readByte();
+    Value* sp = stack.data() + stack.size() - argc - 1;
+
+    switch (value.which()) {
+        case Value::which<Shared<Function>>(): {
+            auto func = value.get<Shared<Function>>();
+            if (argc != func->prot.argc) {
+                error(formatStr("Expected %d argument%p, got %d", func->prot.argc, func->prot.argc > 1 ? "s" : "", argc));
+                return false;
+            }
+
+            newFrame(func->mod, func->prot.chunk, sp, func);
+            return true;
+        }
+
+        case Value::which<Shared<BuiltInFunction>>(): {
+            int stackSize = stack.size();
+            bool result = value.get<Shared<BuiltInFunction>>()->func(this, sp, argc);
+            if (argc) {
+                stack.resize(stackSize - argc);
+            }
+            return result;
+        }
+
+        default:
+            error("Invalid call target");
+            return false;
+    }
+}
+
 CallFrame* Interpreter::getFrame() {
     return &frames.back();
 }
 
 void Interpreter::newFrame(Shared<Module> mod, Chunk& chunk, Value* sp, Shared<Function> func) {
-    frames.push_back(CallFrame {
-        CallFrame{chunk.bytecode.data(), sp, mod, chunk, func}
-    });
+    frames.push_back(CallFrame{
+        CallFrame{chunk.bytecode.data(), sp, mod, chunk, func}});
 }
 
 Shared<UpValue> Interpreter::captureUpValue(Value* local) {
@@ -436,11 +476,10 @@ void Interpreter::closeUpValues(Value* minLoc) {
 
 void Interpreter::printStack() {
     print(">=== Stack ===<");
-    for (int i = 0; i < (signed) stack.size(); i++) {
+    for (int i = 0; i < (signed)stack.size(); i++) {
         printf("%d: %s\n", i, getValueStr(stack[i]).c_str());
     }
     print(">=============<");
-
 }
 
 bool Interpreter::valuesEqual(Value& a, Value& b) {

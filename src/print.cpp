@@ -11,7 +11,8 @@ void printToken(const Token& token) {
         "LeftParen", "RightParen",
         "LeftBrace", "RightBrace",
         "Comma", "Dot", "Plus", "Minus",
-        "Slash", "Asterisk", "Carret", "Semicolon",
+        "Slash", "Asterisk", "Carret", "Semicolon", 
+        "Percent",
 
         "Bang", "BangEqual",
         "Equal", "EqualEqual",
@@ -22,7 +23,8 @@ void printToken(const Token& token) {
 
         "Identifier", "String", "Number", "True", "False", "None",
 
-        "Print", "If", "Else", "Loop", "While", "For", "In", "Continue", "Break", "Func", "Var", "Exit",
+        "Print", "If", "Else", "Loop", "While", "For", "In", "Continue", 
+        "Break", "Func", "Var", "Exit", "And", "Or",
 
         "Error", "EndOfFile"
     };
@@ -91,10 +93,10 @@ void printExpr(const Expr& expr, int indent) {
             auto val = expr.get<Ptr<BinaryExpr>>();
             
             static const char* names[] = { 
-                "Add", "Subtract", "Multiply", 
+                "Add", "Subtract",  "Modulo", "Multiply", 
                 "Divide", "Exponent", "GreaterThan", 
                 "LessThan", "GreaterThanOrEq", 
-                "LessThanOrEq", "Equal", "NotEqual"
+                "LessThanOrEq", "Equal", "NotEqual", "And", "Or"
             };
 
             printf("BinaryExpr{%s}\n", names[(int) val->op]);
@@ -375,7 +377,7 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             index = simpleInstruction("Return", index);
             break;
         case OpPop:
-            index = byteInstruction("Pop", index, chunk);
+            index = simpleInstruction("Pop", index);
             break;
         case OpNumber:
             index = constantInstruction("Number", index, chunk, false);
@@ -401,6 +403,8 @@ int disassembleInstruction(const Chunk& chunk, int index) {
         case OpSubtract:
             index = simpleInstruction("Subtract", index);
             break;
+        case OpModulous:
+            index = simpleInstruction("Modulous", index);
         case OpMultiply:
             index = simpleInstruction("Multiply", index);
             break;
@@ -469,6 +473,12 @@ int disassembleInstruction(const Chunk& chunk, int index) {
             break;
         case OpJumpBack:
             index = jumpInstruction("JumpBack", index, chunk, true);
+            break;
+        case OpJumpIfTrue:
+            index = jumpInstruction("JumpIfTrue", index, chunk);
+            break;
+        case OpJumpIfFalse:
+            index = jumpInstruction("JumpIfFalse", index, chunk);
             break;
         case OpJumpPopIfFalse:
             index = jumpInstruction("JumpPopIfFalse", index, chunk);
@@ -544,6 +554,10 @@ std::string getValueStr(const Value& value) {
         case Value::which<Shared<Function>>(): {
             auto val = value.get<Shared<Function>>();
             return formatStr("Function{%s, argc: %d}", val->prot.name, val->prot.argc);
+        }
+        case Value::which<Shared<BuiltInFunction>>(): {
+            auto val = value.get<Shared<BuiltInFunction>>();
+            return formatStr("BuiltInFunction{%s}", val->name);
         }
         case Value::which<Shared<Module>>(): {
             auto& val = value.get<Shared<Module>>();
