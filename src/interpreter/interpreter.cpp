@@ -1,5 +1,4 @@
 #include "interpreter/interpreter.h"
-
 #include "builtins.h"
 #include "print.h"
 
@@ -77,7 +76,7 @@ Result Interpreter::run() {
                 } else if (a.is<String>() && b.is<String>()) {
                     push(a.get<String>() + b.get<String>());
                 } else {
-                    error("Can only add numbers or strings");
+                    errorAt("Can only add numbers or strings");
                     return Result{1};
                 }
 
@@ -89,7 +88,7 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
-                    error("Can only subtract numbers");
+                    errorAt("Can only subtract numbers");
                     return Result{1};
                 }
 
@@ -102,7 +101,7 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
-                    error("Can only modulous numbers");
+                    errorAt("Can only modulous numbers");
                     return Result{1};
                 }
 
@@ -115,7 +114,7 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
-                    error("Can only multiply numbers");
+                    errorAt("Can only multiply numbers");
                     return Result{1};
                 }
 
@@ -128,7 +127,12 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
-                    error("Can only divide numbers");
+                    errorAt("Can only divide numbers");
+                    return Result{1};
+                }
+
+                if (b.get<Number>() == 0) {
+                    errorAt("Cannot divide by zero");
                     return Result{1};
                 }
 
@@ -148,7 +152,7 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
-                    error("Can only compare numbers");
+                    errorAt("Can only compare numbers");
                     return Result{1};
                 }
 
@@ -161,7 +165,7 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
-                    error("Can only compare numbers");
+                    errorAt("Can only compare numbers");
                     return Result{1};
                 }
 
@@ -174,7 +178,7 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
-                    error("Can only compare numbers");
+                    errorAt("Can only compare numbers");
                     return Result{1};
                 }
 
@@ -187,7 +191,7 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>() || !b.is<Number>()) {
-                    error("Can only compare numbers");
+                    errorAt("Can only compare numbers");
                     return Result{1};
                 }
 
@@ -199,7 +203,7 @@ Result Interpreter::run() {
                 Value a = pop();
 
                 if (!a.is<Number>()) {
-                    error("Can only negate a number");
+                    errorAt("Can only negate a number");
                     return Result{1};
                 }
 
@@ -234,7 +238,7 @@ Result Interpreter::run() {
                 auto value = frame->mod->globals.find(name);
 
                 if (value == frame->mod->globals.end()) {
-                    error(formatStr("Couldn't find global named '%s' in current module", name));
+                    errorAt(formatStr("Couldn't find global named '%s' in current module", name));
                     return Result{1};
                 }
 
@@ -247,7 +251,7 @@ Result Interpreter::run() {
                 auto value = frame->mod->globals.find(name);
 
                 if (value == frame->mod->globals.end()) {
-                    error(formatStr("Couldn't find global named '%s' in current module", name));
+                    errorAt(formatStr("Couldn't find global named '%s' in current module", name));
                     return Result{1};
                 }
 
@@ -347,23 +351,47 @@ Result Interpreter::run() {
             }
 
             default: {
-                error(formatStr("Unknown Instruction (%d)", (int)instruction));
+                errorAt(formatStr("Unknown Instruction (%d)", (int)instruction));
                 return Result{1};
             }
         }
     }
 }
 
-void Interpreter::error(std::string msg) {
+void Interpreter::errorAt(std::string msg) {
     if (hadError) return;
-
     hadError = true;
-    printf("Error during execution\n");
-    printf("    %s\n", msg.c_str());
+
+    std::string path = getFrame()->mod->name;
+    auto& markers = getFrame()->chunk.markers;
+    if (markers.size() == 0) {
+        printf("Error during execution (%s)\n", path.c_str());
+        printf("    %s\n", msg.c_str());
+        return;
+    }
+
+    int count = pc();
+    int index = 0;
+    int low = 0;
+    int high = markers.size() - 1;
+
+    while (low <= high && markers[low].first < count) {
+        int mid = (low + high) / 2;
+
+        if (markers[mid].first <= count) {
+            index = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    error = Error {markers[index].second, "ExecutionError", msg, "", path};
+
 }
 
 int Interpreter::pc() {
-    return getFrame()->ip - getFrame()->chunk.bytecode.data() - 1;
+    return getFrame()->ip - getFrame()->chunk.bytecode.data();
 }
 
 u8 Interpreter::readByte() {
@@ -394,7 +422,7 @@ Value Interpreter::pop() {
         return val;
     }
 
-    error("Tried to pop on empty stack");
+    errorAt("Tried to pop on empty stack");
     return None{};
 }
 
@@ -403,14 +431,13 @@ Value Interpreter::peek(int offset) {
 }
 
 bool Interpreter::callValue(Value value) {
-    u8 argc = readByte();
-    Value* sp = stack.data() + stack.size() - argc - 1;
-
     switch (value.which()) {
         case Value::which<Shared<Function>>(): {
+            u8 argc = readByte();
+            Value* sp = stack.data() + stack.size() - argc - 1;
             auto func = value.get<Shared<Function>>();
             if (argc != func->prot.argc) {
-                error(formatStr("Expected %d argument%p, got %d", func->prot.argc, func->prot.argc > 1 ? "s" : "", argc));
+                errorAt(formatStr("Expected %d argument%p, got %d", func->prot.argc, func->prot.argc > 1 ? "s" : "", argc));
                 return false;
             }
 
@@ -419,6 +446,8 @@ bool Interpreter::callValue(Value value) {
         }
 
         case Value::which<Shared<BuiltInFunction>>(): {
+            u8 argc = readByte();
+            Value* sp = stack.data() + stack.size() - argc - 1;
             int stackSize = stack.size();
             value.get<Shared<BuiltInFunction>>()->ptr(BuiltInHelper(this, sp), argc);
 
@@ -430,7 +459,7 @@ bool Interpreter::callValue(Value value) {
         }
 
         default:
-            error("Invalid call target");
+            errorAt("Invalid call target");
             return false;
     }
 }
@@ -440,8 +469,7 @@ CallFrame* Interpreter::getFrame() {
 }
 
 void Interpreter::newFrame(Shared<Module> mod, Chunk& chunk, Value* sp, Shared<Function> func) {
-    frames.push_back(CallFrame{
-        CallFrame{chunk.bytecode.data(), sp, mod, chunk, func}});
+    frames.push_back(CallFrame{chunk.bytecode.data(), sp, mod, chunk, func});
 }
 
 Shared<UpValue> Interpreter::captureUpValue(Value* local) {

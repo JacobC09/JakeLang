@@ -1,5 +1,7 @@
 #include "print.h"
 
+#include <iomanip>
+#include "color.h"
 #include "compiler/compiler.h"
 #include "debug.h"
 #include "syntax/ast.h"
@@ -25,16 +27,50 @@ void printToken(const Token& token) {
         "Identifier", "String", "Number", "True", "False", "None",
 
         "Print", "If", "Else", "Loop", "While", "For", "In", "Continue",
-        "Break", "Func", "Var", "Exit", "And", "Or",
+        "Break", "Func", "Var", "Exit", "And", "Or", "Type",
 
         "Error", "EndOfFile"};
 
-    if (token.value.length() > 0) {
-        printf("Token{type=%s, value=\'%s\'}\n", names[(int)token.type], std::string(token.value).c_str());
+    if (token.value.size()) {
+        printf("Token{type=%s, value=\'%s\'}\n", names[(int)token.type], token.value.c_str());
     } else {
         print((int)token.type);
         printf("Token{type=%s}\n", names[(int)token.type]);
     }
+}
+
+std::vector<std::string> getLines(const std::string& str) {
+    std::vector<std::string> lines;
+    std::stringstream stream(str);
+    
+    std::string line;
+    while (std::getline(stream, line)) {
+        lines.push_back(line);
+    }
+
+    return lines;
+};
+
+void printError(const Error& error, const std::string& source) {
+    std::vector<std::string> lines = getLines(source);
+    std::string line = lines[error.view.line - 1];
+
+    line.erase(line.begin(), std::find_if(line.begin(), line.end(), [](unsigned char c) {
+        return !std::isspace(c);
+    }));
+
+    int column = error.view.column - (lines[error.view.line - 1].length() - line.length());
+
+    std::string lineNumber = std::to_string(error.view.line + 1);
+    std::string lineSpace = std::string(lineNumber.length(), ' ');
+
+    std::cout << hue::red << "JakeLang Error" << hue::reset;
+    std::cout << " -> " << error.path << ":" << lineNumber << ":" << column << "\n";
+    std::cout << lineSpace << " |\n";
+    std::cout << lineNumber << " | " << line << "\n";
+    std::cout << lineSpace << " | " << std::string(column, ' ') << hue::red << std::string(error.view.length, '^') << " " << error.note << hue::reset << "\n";
+    std::cout << lineSpace << " |\n";
+    std::cout << ">>> " << hue::red << error.type << ": " << hue::reset << error.msg;
 }
 
 void printIndent(int indent) {
@@ -255,6 +291,28 @@ void printStmt(const Stmt& stmt, int indent) {
             break;
         }
 
+        case Stmt::which<Ptr<TypeDeclaration>>(): {
+            auto val = stmt.get<Ptr<TypeDeclaration>>();
+            print("TypeDeclaration{}");
+            printIndent(indent + 1);
+            print("Name:");
+            printIndent(indent + 2);
+            print(val->name.name);
+            printIndent(indent + 1);
+            print("Parents:");
+            for (auto& parent : val->parents) {
+                printIndent(indent + 2);
+                printf("%s", parent.name.c_str());
+            }
+            printIndent(indent + 1);
+            print("Methods:");
+            for (auto& func : val->methods) {
+                printStmt(func, indent + 2);
+            }
+
+            break;
+        }
+
         case Stmt::which<Ptr<FuncDeclaration>>(): {
             auto val = stmt.get<Ptr<FuncDeclaration>>();
             print("FuncDeclaration{}");
@@ -269,7 +327,6 @@ void printStmt(const Stmt& stmt, int indent) {
             }
             printIndent(indent + 1);
             print("Body:");
-
             for (auto& stmt : val->body) {
                 printStmt(stmt, indent + 2);
             }

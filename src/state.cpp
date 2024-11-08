@@ -9,52 +9,36 @@
 
 State::State() {
     base = std::make_shared<Module>();
+    base->name = "base";
 
     Shared<Module> mod = initBuiltins();
-    base->globals["__builtIns__"] = mod;
     base->globals.merge(mod->globals);
 }
 
 Result State::run(std::string source) {
-    Parser parser = Parser(source);
+    Parser parser = Parser(source, base->name);
     Ast ast = parser.parse();
 
-    if (parser.failed())
-        return Result{ExitCode::Failed};
 
-    Compiler compiler;
+    if (parser.failed()) {
+        printError(parser.getError(), source);
+        return Result{ExitCode::Failed};
+    }
+
+    Compiler compiler = Compiler(base->name);
     Chunk chunk = compiler.compile(ast);
 
     if (compiler.failed()) {
+        printError(compiler.getError(), source);
         return Result{ExitCode::Failed};
     }
 
     Interpreter interpreter = Interpreter(*this);
+    Result res = interpreter.interpret(base, chunk);
 
-    return interpreter.interpret(base, chunk);
+    if (res.exitCode > 0) {
+        printError(interpreter.error, source);
+    }
+
+    return res;
 }
-
-// Result State::run(std::string source) {
-//     Parser parser = Parser(source);
-//     Ast ast = parser.parse();
-
-//     if (parser.failed())
-//         return Result{ExitCode::Failed};
-
-//     printAst(ast);
-
-//     Compiler compiler;
-//     Chunk chunk = compiler.compile(ast);
-
-//     if (compiler.failed()) {
-//         return Result { ExitCode::Failed };
-//     }
-
-//     printChunk(chunk);
-
-//     Interpreter interpreter = Interpreter(*this);
-//     print(">=== Output ===<");
-//     Result result = interpreter.interpret(base, chunk);
-//     print(">==============<");
-//     return result;
-// }

@@ -1,10 +1,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-
 #include "debug.h"
-#include "interpreter/interpreter.h"
-#include "print.h"
 #include "state.h"
 #include "timer.h"
 
@@ -44,9 +41,21 @@ void repl() {
 }
 
 int main(int argc, const char* argv[]) {
-    if (argc == 1) {
-        runFile(argv[0]);
-    } else {
-        repl();
-    }
+    runFile("./test/code.jake");
+    
+    // switch (argc) {
+    //     case 1:
+    //         repl();
+    //         break;
+
+    //     case 2:
+    //         runFile(argv[1]);
+    //         break;
+
+    //     default:
+    //         print("[Usage] jake-lang (path)");
+    //         break;
+    // }
+
+    return 0;
 }

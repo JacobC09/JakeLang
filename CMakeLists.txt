@@ -11,6 +11,7 @@ add_executable(jake-lang
     "src/interpreter/interpreter.cpp"
     "src/syntax/scanner.cpp"
     "src/syntax/parser.cpp"
+    "src/syntax/ast.cpp"
     "src/debug.cpp"
     "src/state.cpp"
     "src/util.cpp"

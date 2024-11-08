@@ -1,15 +1,15 @@
 #include "syntax/parser.h"
-
 #include "debug.h"
 #include "print.h"
 #include "util.h"
 
-Parser::Parser(std::string& source) : scanner(source) {
+Parser::Parser(std::string& src, std::string& path) : source(src), scanner(src), path(path) {
     hadError = false;
 }
 
 Ast Parser::parse() {
     Ast ast;
+    ast.source = source;
 
     advance();
     while (!isFinished()) {
@@ -19,6 +19,14 @@ Ast Parser::parse() {
     return ast;
 }
 
+bool Parser::failed() {
+    return hadError;
+}
+
+Error Parser::getError() {
+    return error;
+}
+
 void Parser::advance() {
     if (hadError) return;
 
@@ -26,8 +34,19 @@ void Parser::advance() {
     cur = scanner.nextToken();
 
     if (cur.type == TokenType::Error) {
-        errorAt(cur, formatStr("Invalid Token: %s", std::string(cur.value)));
+        errorAt(cur, formatStr("Invalid Token: %s", cur.value));
     }
+}
+
+void Parser::errorAt(Token& token, std::string msg, std::string note) {
+    if (hadError) return;
+    errorAtView(token.view, msg, note);
+}
+
+void Parser::errorAtView(SourceView view, std::string msg, std::string note) {
+    if (hadError) return;
+    hadError = true;
+    error = Error {view, "SyntaxError", msg, note, path};
 }
 
 void Parser::consume(TokenType type, std::string msg) {
@@ -36,8 +55,15 @@ void Parser::consume(TokenType type, std::string msg) {
         return;
     }
 
-    errorAt(cur, msg);
+    if (hadError) return;
+
+    hadError = true;
+    error = Error {SourceView {prev.view.index + prev.view.length, 1, prev.view.line, prev.view.column + prev.view.length}, "SyntaxError", msg, "here", path};
 };
+
+bool Parser::isFinished() {
+    return check(TokenType::EndOfFile) || hadError;
+}
 
 bool Parser::check(TokenType type) {
     return cur.type == type;
@@ -56,42 +82,22 @@ bool Parser::match(TokenType type, Args... args) {
     return match(type) || match(args...);
 }
 
-void Parser::errorAt(Token& token, std::string msg) {
-    if (hadError) return;
-
-    hadError = true;
-    printf("Error at line %d\n", token.line);
-    printf("    %s\n", msg.c_str());
-}
-
-bool Parser::isFinished() {
-    return check(TokenType::EndOfFile) || hadError;
-}
-
-bool Parser::failed() {
-    return hadError;
-}
-
 Expr Parser::expression() {
     return assignment();
 }
 
 Expr Parser::assignment() {
+    SourceView view = cur.view;
     Expr target = _or();
 
     while (match(TokenType::Equal, TokenType::PlusEqual, TokenType::MinusEqual, TokenType::SlashEqual, TokenType::AsteriskEqual, TokenType::CarretEqual)) {
-        if (target.which() != Expr::which<Identifier>()) {
-            errorAt(prev, "Assignment target must be an identifier");
-            break;
-        }
-
-        TokenType opToken = prev.type;
+        Token opToken = prev;
         Expr right = _or();
 
-        if (opToken != TokenType::Equal) {
+        if (opToken.type != TokenType::Equal) {
             BinaryExpr::Operation op;
 
-            switch (opToken) {
+            switch (opToken.type) {
                 case TokenType::PlusEqual:
                     op = BinaryExpr::Operation::Add;
                     break;
@@ -111,52 +117,63 @@ Expr Parser::assignment() {
                 default:
                     break;
             }
-
-            right = BinaryExpr{op, target, right};
+            
+            right = BinaryExpr{view | prev.view, opToken, op, target, right};
         }
 
-        target = AssignmentExpr{target.get<Identifier>(), right};
+        target = AssignmentExpr{view | prev.view, target, right};
     }
 
     return target;
 }
 
 Expr Parser::_or() {
+    SourceView view = cur.view;
     Expr expr = _and();
 
     while (match(TokenType::Or)) {
-        expr = BinaryExpr{BinaryExpr::Operation::Or, expr, _and()};
+        Token opToken = prev;
+        Expr right = _and();
+        expr = BinaryExpr{view | prev.view, opToken, BinaryExpr::Operation::Or, expr, right};
     }
 
     return expr;
 }
 
 Expr Parser::_and() {
+    SourceView view = cur.view;
     Expr expr = equality();
 
     while (match(TokenType::And)) {
-        expr = BinaryExpr{BinaryExpr::Operation::And, expr, equality()};
+        Token opToken = prev;
+        Expr right = equality();
+        expr = BinaryExpr{view | prev.view, opToken, BinaryExpr::Operation::And, expr, right};
     }
 
     return expr;
 }
 
 Expr Parser::equality() {
+    SourceView view = cur.view;
     Expr expr = comparison();
 
     while (match(TokenType::EqualEqual, TokenType::BangEqual)) {
-        expr = BinaryExpr{prev.type == TokenType::EqualEqual ? BinaryExpr::Operation::Equal : BinaryExpr::Operation::NotEqual, expr, comparison()};
+        Token opToken = prev;
+        Expr right = comparison();
+        expr = BinaryExpr{view | prev.view, opToken, opToken.type == TokenType::EqualEqual ? BinaryExpr::Operation::Equal : BinaryExpr::Operation::NotEqual, expr, right};
     }
 
     return expr;
 }
 
 Expr Parser::comparison() {
+    SourceView view = cur.view;
     Expr expr = term();
 
     while (match(TokenType::Greater, TokenType::Less, TokenType::LessEqual, TokenType::GreaterEqual)) {
+        Token opToken = prev;
         BinaryExpr::Operation op;
-        switch (prev.type) {
+        switch (opToken.type) {
             case TokenType::Greater:
                 op = BinaryExpr::Operation::GreaterThan;
                 break;
@@ -173,18 +190,21 @@ Expr Parser::comparison() {
                 break;
         }
 
-        expr = BinaryExpr{op, expr, term()};
+        Expr right = term();
+        expr = BinaryExpr{view | prev.view, opToken, op, expr, right};
     }
 
     return expr;
 }
 
 Expr Parser::term() {
+    SourceView view = cur.view;
     Expr expr = factor();
 
     while (match(TokenType::Plus, TokenType::Minus, TokenType::Percent)) {
+        Token opToken = prev;
         BinaryExpr::Operation op;
-        switch (prev.type) {
+        switch (opToken.type) {
             case TokenType::Plus:
                 op = BinaryExpr::Operation::Add;
                 break;
@@ -197,59 +217,77 @@ Expr Parser::term() {
             default:
                 break;
         }
-        expr = BinaryExpr{op, expr, factor()};
+
+        Expr right = factor();
+        expr = BinaryExpr{view | prev.view, opToken, op, expr, right};
     }
 
     return expr;
 }
 
 Expr Parser::factor() {
+    SourceView view = cur.view;
     Expr expr = exponent();
 
     while (match(TokenType::Asterisk, TokenType::Slash)) {
-        expr = BinaryExpr{prev.type == TokenType::Asterisk ? BinaryExpr::Operation::Multiply : BinaryExpr::Operation::Divide, expr, exponent()};
+        Token opToken = prev;
+        Expr right = exponent();
+        expr = BinaryExpr{view | prev.view, opToken, opToken.type == TokenType::Asterisk ? BinaryExpr::Operation::Multiply : BinaryExpr::Operation::Divide, expr, right};
     }
 
     return expr;
 }
 
 Expr Parser::exponent() {
+    SourceView view = cur.view;
     Expr expr = unary();
 
     while (match(TokenType::Carret)) {
-        expr = BinaryExpr{BinaryExpr::Operation::Exponent, expr, unary()};
+        Token opToken = prev;
+        Expr right = unary();
+        expr = BinaryExpr{view | prev.view, opToken, BinaryExpr::Operation::Exponent, expr, right};
     }
 
     return expr;
 }
 
 Expr Parser::unary() {
+    SourceView view = cur.view;
+
     if (match(TokenType::Minus, TokenType::Plus)) {
         bool isNegative = true;
         while (match(TokenType::Minus, TokenType::Plus)) {
             if (prev.type == TokenType::Minus)
                 isNegative = !isNegative;
         }
-        if (isNegative)
-            return UnaryExpr{UnaryExpr::Operation::Negative, post()};
+        if (isNegative) {
+            Token opToken = prev;
+            Expr expr = post();
+            return UnaryExpr{view | prev.view, opToken, UnaryExpr::Operation::Negative, expr};
+        }
     } else if (match(TokenType::Bang)) {
         bool isNegate = true;
         while (match(TokenType::Minus)) isNegate = !isNegate;
 
-        if (isNegate)
-            return UnaryExpr{UnaryExpr::Operation::Negate, post()};
+        if (isNegate) {
+            Token opToken = prev;
+            Expr expr = post();
+            return UnaryExpr{view | prev.view, opToken, UnaryExpr::Operation::Negate, expr};
+        }
     }
 
     return post();
 }
 
 Expr Parser::post() {
+    SourceView view = cur.view;
     Expr expr = primary();
 
     while (match(TokenType::Dot, TokenType::LeftParen)) {
         if (prev.type == TokenType::Dot) {
             consume(TokenType::Identifier, "Expected identifier name after '.'");
-            expr = PropertyExpr{expr, identifer()};
+            Identifier prop = identifer();
+            expr = PropertyExpr{view | prev.view, expr, prop};
         } else {
             std::vector<Expr> args;
             if (!check(TokenType::RightParen)) {
@@ -257,7 +295,7 @@ Expr Parser::post() {
             }
 
             consume(TokenType::RightParen, "Expected ')' after argument list");
-            expr = CallExpr{expr, args};
+            expr = CallExpr{view | prev.view, expr, args};
         }
     }
 
@@ -269,11 +307,11 @@ Expr Parser::primary() {
 
     switch (prev.type) {
         case TokenType::True:
-            return BoolLiteral{true};
+            return BoolLiteral{prev.view, true};
         case TokenType::False:
-            return BoolLiteral{false};
+            return BoolLiteral{prev.view, false};
         case TokenType::None:
-            return NoneLiteral{};
+            return NoneLiteral{prev.view};
 
         case TokenType::Number:
             return number();
@@ -295,17 +333,17 @@ Expr Parser::primary() {
 
 NumLiteral Parser::number() {
     if (prev.value.front() == '.')
-        return NumLiteral{std::stod("0." + std::string(prev.value))};
+        return NumLiteral{prev.view, std::stod("0." + prev.value)};
 
-    return NumLiteral{std::stod(std::string(prev.value))};
+    return NumLiteral{prev.view, std::stod(prev.value)};
 }
 
 StrLiteral Parser::string() {
-    return StrLiteral{std::string(prev.value.data() + 1, prev.value.size() - 2)};
+    return StrLiteral{prev.view, std::string(prev.value.data() + 1, prev.value.length() - 2)};
 }
 
 Identifier Parser::identifer() {
-    return Identifier{std::string(prev.value)};
+    return Identifier{prev.view, prev.value};
 }
 
 Expr Parser::grouping() {
@@ -339,6 +377,8 @@ std::vector<Stmt> Parser::block() {
 }
 
 Stmt Parser::statement() {
+    SourceView view = cur.view;
+
     switch (cur.type) {
         case TokenType::Print:
             return printStmt();
@@ -358,32 +398,41 @@ Stmt Parser::statement() {
         case TokenType::Return:
             return returnStmt();
 
+        case TokenType::Type:
+            return typeDeclaration();
+
         case TokenType::Func:
             return funcDeclaration();
 
         case TokenType::Var:
             return varDeclaration();
 
-        case TokenType::LeftBrace:
+        case TokenType::LeftBrace: {
             advance();
-            return BlockStmt{block()};
+            std::vector<Stmt> body = block();
+            return BlockStmt{view | prev.view, body};
+        }
 
-        case TokenType::Break:
+        case TokenType::Break: {
             advance();
             consume(TokenType::Semicolon, "Expected ';' after break");
-            return BreakStmt{};
+            return BreakStmt{view};
+        }
 
-        case TokenType::Continue:
+        case TokenType::Continue: {
             advance();
             consume(TokenType::Semicolon, "Expected ';' after continue");
-            return ContinueStmt{};
+            return ContinueStmt{view};
+        }
 
-        case TokenType::Exit:
+        case TokenType::Exit: {
             advance();
             consume(TokenType::Number, "Expected number after exit");
             NumLiteral code = number();
+            Stmt stmt = ExitStmt{view | prev.view, code};
             consume(TokenType::Semicolon, "Expected ';' exit code");
-            return ExitStmt{code};
+            return stmt;
+        }
 
         case TokenType::EndOfFile:
         case TokenType::Error:
@@ -395,19 +444,24 @@ Stmt Parser::statement() {
 }
 
 Stmt Parser::exprStmt() {
-    Stmt stmt = ExprStmt{expression()};
+    SourceView view = cur.view;
+    Expr expr = expression();
+    Stmt stmt = ExprStmt{view | prev.view, expr};
     consume(TokenType::Semicolon, "Expected ';' after expression");
     return stmt;
 }
 
 Stmt Parser::printStmt() {
+    SourceView view = cur.view;
     advance();
     std::vector<Expr> exprs = exprList();
+    Stmt stmt = PrintStmt{view | prev.view, exprs};
     consume(TokenType::Semicolon, "Expected ';' after print statement");
-    return PrintStmt{exprs};
+    return stmt;
 }
 
 Stmt Parser::ifStmt() {
+    SourceView view = cur.view;
     advance();
     Expr condition = expression();
     consume(TokenType::LeftBrace, "Expected '{' after if condition");
@@ -423,23 +477,28 @@ Stmt Parser::ifStmt() {
         }
     }
 
-    return IfStmt{condition, body, orelse};
+    return IfStmt{view | prev.view, condition, body, orelse};
 }
 
 Stmt Parser::loopBlock() {
+    SourceView view = cur.view;
     advance();
     consume(TokenType::LeftBrace, "Expected '{' after loop");
-    return LoopBlock{block()};
+    std::vector<Stmt> body = block();
+    return LoopBlock{view | prev.view, body};
 }
 
 Stmt Parser::whileLoop() {
+    SourceView view = cur.view;
     advance();
     Expr condition = expression();
     consume(TokenType::LeftBrace, "Expected '{' after while condition");
-    return WhileLoop{condition, block()};
+    std::vector<Stmt> body = block();
+    return WhileLoop{view | prev.view, condition, body};
 }
 
 Stmt Parser::forLoop() {
+    SourceView view = cur.view;
     advance();
     if (!match(TokenType::Identifier)) {
         errorAt(cur, "For loop target must be an identifier");
@@ -449,17 +508,49 @@ Stmt Parser::forLoop() {
     consume(TokenType::In, "Expected 'in' after for loop target");
     Expr iterator = expression();
     consume(TokenType::LeftBrace, "Expected '{' after for iterator");
-    return ForLoop{target, iterator, block()};
+    std::vector<Stmt> body = block();
+    return ForLoop{view | prev.view, target, iterator, body};
 }
 
 Stmt Parser::returnStmt() {
+    SourceView view = cur.view;
     advance();
-    Expr value = expression();
-    consume(TokenType::Semicolon, "Expected ';' after return statement");
-    return ReturnStmt{value};
+    Expr value = NoneLiteral{};
+    if (!match(TokenType::Semicolon)) {
+        value = expression();
+        view = view | prev.view;
+        consume(TokenType::Semicolon, "Expected ';' after return statement");
+    }
+    return ReturnStmt{view, value};
+}
+
+Stmt Parser::typeDeclaration() {
+    SourceView view = cur.view;
+    advance();
+    consume(TokenType::Identifier, "Type name must be an idenfitier");
+    Identifier name = identifer();
+    
+    std::vector<Identifier> parents;
+    if (match(TokenType::Semicolon)) {
+        do {
+            consume(TokenType::Identifier, "Parent must by an identifier");
+            parents.push_back(identifer());
+        } while (match(TokenType::Comma));
+    }
+
+    consume(TokenType::LeftBrace, "Expected '{' before type body");
+
+    std::vector<Stmt> methods;
+    while (!check(TokenType::RightBrace) && !isFinished()) {
+        methods.push_back(methodDeclaration());
+    }
+
+    consume(TokenType::RightBrace, "Expected '}' after block");
+    return TypeDeclaration{view | prev.view, name, parents, methods};
 }
 
 Stmt Parser::funcDeclaration() {
+    SourceView view = cur.view;
     advance();
     if (!match(TokenType::Identifier)) {
         errorAt(cur, "Function name must be an identifier");
@@ -483,10 +574,40 @@ Stmt Parser::funcDeclaration() {
 
     consume(TokenType::RightParen, "Expected ')' after function arguments");
     consume(TokenType::LeftBrace, "Expected '{' before function body");
-    return FuncDeclaration{name, args, block()};
+    std::vector<Stmt> body = block();
+    return FuncDeclaration{view | prev.view, name, args, body};
+}
+
+Stmt Parser::methodDeclaration() {
+    SourceView view = cur.view;
+    if (!match(TokenType::Identifier)) {
+        errorAt(cur, "Method name must be an identifier");
+        return Empty{};
+    }
+    Identifier name = identifer();
+    consume(TokenType::LeftParen, "Expected '(' after method name");
+
+    std::vector<Identifier> args;
+    while (!isFinished() && !check(TokenType::RightParen)) {
+        Expr expr = expression();
+        if (expr.which() != Expr::which<Identifier>()) {
+            errorAt(prev, "Expected argument identifiers");
+            break;
+        }
+        args.push_back(expr.get<Identifier>());
+
+        if (!match(TokenType::Comma))
+            break;
+    }
+
+    consume(TokenType::RightParen, "Expected ')' after method arguments");
+    consume(TokenType::LeftBrace, "Expected '{' before method body");
+    std::vector<Stmt> body = block();
+    return FuncDeclaration{view | prev.view, name, args, body};
 }
 
 Stmt Parser::varDeclaration() {
+    SourceView view = cur.view;
     advance();
     if (!match(TokenType::Identifier)) {
         errorAt(cur, "Function name must be an identifier");
@@ -499,6 +620,7 @@ Stmt Parser::varDeclaration() {
     } else {
         expr = Empty{};
     }
+    Stmt stmt = VarDeclaration{view | prev.view, name, expr};
     consume(TokenType::Semicolon, "Expected ';' after variable declaration");
-    return VarDeclaration{name, expr};
+    return stmt;
 }

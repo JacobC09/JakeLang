@@ -1,6 +1,5 @@
 #pragma once
 #include <map>
-
 #include "interpreter/value.h"
 
 enum ExitCode : int {

@@ -1,6 +1,7 @@
 #pragma once
 #include "interpreter/value.h"
 #include "state.h"
+#include "error.h"
 
 const int frames_max = 64;
 const int stack_max = frames_max * UINT8_MAX;
@@ -20,7 +21,7 @@ public:
     Result interpret(Shared<Module> mod, Chunk& chunk);
     Result run();
 
-    void error(std::string msg);
+    void errorAt(std::string msg);
     int pc();
     u8 readByte();
     u16 readShort();
@@ -40,6 +41,7 @@ public:
     bool isTruthy(Value& value);
 
     bool hadError;
+    Error error;
     State& state;
 
     Shared<UpValue> openUpValues;

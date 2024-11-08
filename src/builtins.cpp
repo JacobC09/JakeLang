@@ -35,7 +35,7 @@ void BuiltInHelper::setReturn(Value value) {
 }
 
 void BuiltInHelper::error(std::string msg) {
-    interpreter->error(msg);
+    interpreter->errorAt(msg);
 }
 
 bool BuiltInHelper::assertArgc(int argc, int expected) {

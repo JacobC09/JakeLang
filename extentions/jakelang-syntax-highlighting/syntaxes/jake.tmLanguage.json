@@ -16,6 +16,9 @@
             "include": "#strings"
         },
         {
+            "include": "#constants"
+        },
+        {
             "include": "#numbers"
         },
         {
@@ -59,6 +62,14 @@
                             "match": "\\\\."
                         }
                     ]
+                }
+            ]
+        },
+        "constants": {
+            "patterns": [
+                {
+                    "name": "constant.language",
+                    "match": "\\b(true|false|none)\\b"
                 }
             ]
         },

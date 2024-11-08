@@ -1,30 +1,37 @@
 #pragma once
 #include <vector>
-
 #include "variant.h"
+#include "token.h"
 
-struct Empty {};
-struct NoneLiteral {};
-struct BreakStmt {};
-struct ContinueStmt {};
+struct AstNode {
+    SourceView view;
+};
 
-struct NumLiteral {
+struct Empty : AstNode {};
+
+struct NoneLiteral : AstNode {};
+
+struct NumLiteral : AstNode {
     double value;
 };
 
-struct Identifier {
+struct Identifier : AstNode {
     std::string name;
 };
 
-struct BoolLiteral {
+struct BoolLiteral : AstNode {
     bool value;
 };
 
-struct StrLiteral {
+struct StrLiteral : AstNode {
     std::string value;
 };
 
-struct ExitStmt {
+struct BreakStmt : AstNode {};
+
+struct ContinueStmt : AstNode {};
+
+struct ExitStmt : AstNode {
     NumLiteral code;
 };
 
@@ -55,20 +62,22 @@ using Stmt = Variant<
     Ptr<struct ReturnStmt>,
     Ptr<struct FuncDeclaration>,
     Ptr<struct VarDeclaration>,
-    Ptr<struct BlockStmt> >;
+    Ptr<struct BlockStmt>,
+    Ptr<struct TypeDeclaration> >;
 
 struct Ast {
+    std::string source;
     std::vector<Stmt> body;
 };
 
 // Expressions
 
-struct AssignmentExpr {
+struct AssignmentExpr : AstNode {
     Expr target;
     Expr expr;
 };
 
-struct BinaryExpr {
+struct BinaryExpr : AstNode{
     enum Operation {
         Add,
         Subtract,
@@ -86,77 +95,88 @@ struct BinaryExpr {
         Or
     };
 
+    Token opToken;
     Operation op;
     Expr left;
     Expr right;
 };
 
-struct UnaryExpr {
+struct UnaryExpr : AstNode{
     enum Operation {
         Negative,
         Negate
     };
 
+    Token opToken;
     Operation op;
     Expr expr;
 };
 
-struct CallExpr {
+struct CallExpr : AstNode {
     Expr target;
     std::vector<Expr> args;
 };
 
-struct PropertyExpr {
+struct PropertyExpr : AstNode {
     Expr expr;
     Identifier prop;
 };
 
 // Statements
 
-struct ExprStmt {
+struct ExprStmt : AstNode {
     Expr expr;
 };
 
-struct PrintStmt {
+struct PrintStmt : AstNode {
     std::vector<Expr> exprs;
 };
 
-struct IfStmt {
+struct IfStmt : AstNode {
     Expr condition;
     std::vector<Stmt> body;
     std::vector<Stmt> orelse;
 };
 
-struct LoopBlock {
+struct LoopBlock : AstNode {
     std::vector<Stmt> body;
 };
 
-struct WhileLoop {
+struct WhileLoop : AstNode {
     Expr condition;
     std::vector<Stmt> body;
 };
 
-struct ForLoop {
+struct ForLoop : AstNode {
     Identifier target;
     Expr iterator;
     std::vector<Stmt> body;
 };
 
-struct ReturnStmt {
+struct ReturnStmt : AstNode {
     Expr value;
 };
 
-struct BlockStmt {
+struct BlockStmt : AstNode {
     std::vector<Stmt> body;
 };
 
-struct FuncDeclaration {
+struct TypeDeclaration : AstNode {
+    Identifier name;
+    std::vector<Identifier> parents;
+    std::vector<Stmt> methods;
+};
+
+struct FuncDeclaration : AstNode {
     Identifier name;
     std::vector<Identifier> args;
     std::vector<Stmt> body;
 };
 
-struct VarDeclaration {
+struct VarDeclaration : AstNode {
     Identifier target;
     Expr expr;
 };
+
+SourceView getSourceView(Expr& expr);
+SourceView getSourceView(Stmt& stmt);

@@ -1,10 +1,9 @@
 #include "syntax/scanner.h"
-
 #include "debug.h"
 
-Scanner::Scanner(std::string src) {
-    source = src;
+Scanner::Scanner(std::string& src) : source(src) {
     line = 1;
+    lineStart = source.data();
     current = source.data();
 }
 
@@ -79,7 +78,7 @@ char Scanner::peekNext() {
 }
 
 char Scanner::isAtEnd() {
-    return *current == '\0';
+    return peek() == '\0';
 }
 
 bool Scanner::match(char expected) {
@@ -101,6 +100,7 @@ void Scanner::skipWhiteSpace() {
             case '\n':
                 line++;
                 advance();
+                lineStart = current;
                 break;
 
             case '#':
@@ -108,15 +108,19 @@ void Scanner::skipWhiteSpace() {
                 break;
 
             default:
-                return;
+               return;
         }
     }
 }
 
 Token Scanner::makeToken(TokenType type) {
-    int tokenLength = current - start;
+    int index = start - source.data();
+    int length = current - start;
+    int column = start - lineStart;
 
-    return Token{type, std::string_view(start, tokenLength), line};
+    return Token {type, std::string(start, length), SourceView {
+        index, length, line, column
+    }};
 }
 
 Token Scanner::scanNumber() {
@@ -186,6 +190,8 @@ Token Scanner::scanIdentifer() {
         token.type = TokenType::And;
     } else if (token.value.compare("or") == 0) {
         token.type = TokenType::Or;
+    } else if (token.value.compare("type") == 0) {
+        token.type = TokenType::Type;
     }
 
     return token;

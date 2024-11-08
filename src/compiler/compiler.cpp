@@ -1,5 +1,4 @@
 #include "compiler/compiler.h"
-
 #include <cstring>
 
 Chunk Compiler::compile(Ast& ast) {
@@ -14,6 +13,10 @@ Chunk Compiler::compile(Ast& ast) {
 
 bool Compiler::failed() {
     return hadError;
+}
+
+Error Compiler::getError() {
+    return error;
 }
 
 Chunk* Compiler::getChunk() {
@@ -70,15 +73,21 @@ void Compiler::endLoop() {
     chunkData->loopData = std::move(chunkData->loopData->enclosing);
 }
 
-void Compiler::error(std::string msg) {
+void Compiler::errorAt(SourceView view, std::string msg, std::string note) {
     if (hadError) return;
-
     hadError = true;
-    printf("Error during compilation\n");
+    error = Error{view, "CompileError", msg, note, path};
+}
+
+void Compiler::internalError(std::string msg) {
+    if (hadError) return;
+    hadError = true;
+
+    printf("Internal compilation error\n");
     printf("    %s\n", msg.c_str());
 }
 
-int Compiler::makeNumberConstant(double value) {
+int Compiler::makeNumberConstant(double value, SourceView view) {
     auto& pool = getChunk()->constants.numbers;
     auto it = std::find(pool.begin(), pool.end(), value);
     int index;
@@ -91,13 +100,13 @@ int Compiler::makeNumberConstant(double value) {
     }
 
     if (index > UINT8_MAX) {
-        error("Too many constants in pool");
+        errorAt(view, "Too many constants in pool");
     }
 
     return index;
 }
 
-int Compiler::makeNameConstant(std::string value) {
+int Compiler::makeNameConstant(std::string value, SourceView view) {
     auto& pool = getChunk()->constants.names;
     auto it = std::find(pool.begin(), pool.end(), value);
     int index;
@@ -109,29 +118,29 @@ int Compiler::makeNameConstant(std::string value) {
     }
 
     if (index > UINT8_MAX) {
-        error("Too many constants in pool");
+        errorAt(view, "Too many constants in pool");
     }
 
     return index;
 }
 
-void Compiler::addLocal(std::string name) {
+void Compiler::addLocal(std::string name, SourceView view) {
     for (auto& local : chunkData->locals) {
         if (local.name == name && local.depth == chunkData->scopeDepth) {
-            error(formatStr("Already a local called '%s'", name));
+            errorAt(view, formatStr("Already a local called '%s'", name));
             return;
         }
     }
 
     if (chunkData->locals.size() > UINT8_MAX) {
-        error("Too many locals in scope");
+        errorAt(view, "Too many locals in scope");
         return;
     }
 
     chunkData->locals.push_back(Local{name, chunkData->scopeDepth});
 }
 
-int Compiler::addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool isLocal) {
+int Compiler::addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool isLocal, SourceView view) {
     for (int i = 0; i < (signed)chunk->upValues.size(); i++) {
         auto& upValue = chunk->upValues[i];
         if (upValue.index == index && upValue.isLocal == isLocal) {
@@ -141,7 +150,7 @@ int Compiler::addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool isLoc
 
     int count = chunk->upValues.size();
     if (count > UINT8_MAX) {
-        error("Too many captured locals in scope");
+        errorAt(view, "Too many captured locals in scope");
         return -1;
     }
 
@@ -159,44 +168,44 @@ int Compiler::findLocal(std::unique_ptr<ChunkData>& chunk, std::string name) {
     return -1;
 }
 
-int Compiler::findUpValue(std::unique_ptr<ChunkData>& chunk, std::string name) {
+int Compiler::findUpValue(std::unique_ptr<ChunkData>& chunk, std::string name, SourceView view) {
     if (chunk->enclosing == nullptr) {
         return -1;
     }
 
     int local = findLocal(chunk->enclosing, name);
     if (local != -1) {
-        return addUpValue(chunk, local, true);
+        return addUpValue(chunk, local, true, view);
     }
 
-    int upValue = findUpValue(chunk->enclosing, name);
+    int upValue = findUpValue(chunk->enclosing, name, view);
     if (upValue != -1) {
-        return addUpValue(chunk, upValue, false);
+        return addUpValue(chunk, upValue, false, view);
     }
 
     return -1;
 }
 
-void Compiler::declare(std::string name) {
+void Compiler::declare(std::string name, SourceView view) {
     if (chunkData->scopeDepth == 0) {
         emitByte(OpDefineGlobal);
-        emitByte(makeNameConstant(name));
+        emitByte(makeNameConstant(name, view));
         return;
     }
 
-    addLocal(name);
+    addLocal(name, view);
 }
 
 void Compiler::body(std::vector<Stmt>& stmts) {
     for (Stmt& stmt : stmts) {
         switch (stmt.which()) {
             case Stmt::which<BreakStmt>(): {
-                breakStmt();
+                breakStmt(stmt.get<BreakStmt>());
                 break;
             }
 
             case Stmt::which<ContinueStmt>(): {
-                continueStmt();
+                continueStmt(stmt.get<ContinueStmt>());
                 break;
             }
 
@@ -241,6 +250,11 @@ void Compiler::body(std::vector<Stmt>& stmts) {
                 break;
             }
 
+            case Stmt::which<Ptr<TypeDeclaration>>(): {
+                typeDeclaration(stmt.get<Ptr<TypeDeclaration>>());
+                break;
+            }
+
             case Stmt::which<Ptr<FuncDeclaration>>(): {
                 funcDeclaration(stmt.get<Ptr<FuncDeclaration>>());
                 break;
@@ -259,24 +273,24 @@ void Compiler::body(std::vector<Stmt>& stmts) {
             }
 
             default:
-                error("Invalid statement");
+                internalError("Invalid statement");
                 break;
         }
     }
 }
 
-void Compiler::breakStmt() {
+void Compiler::breakStmt(BreakStmt& stmt) {
     if (chunkData->loopData == nullptr) {
-        error("Cannot use break statement outside of loop");
+        errorAt(stmt.view, "Cannot use break statement outside of loop");
         return;
     }
 
     chunkData->loopData->breaks.push_back(emitJumpForwards(OpJump));
 }
 
-void Compiler::continueStmt() {
+void Compiler::continueStmt(ContinueStmt& stmt) {
     if (chunkData->loopData == nullptr) {
-        error("Cannot use continue statement outside of loop");
+        errorAt(stmt.view, "Cannot use continue statement outside of loop");
         return;
     }
 
@@ -285,7 +299,7 @@ void Compiler::continueStmt() {
 
 void Compiler::exitStmt(ExitStmt& stmt) {
     if (stmt.code.value > UINT8_MAX) {
-        error(formatStr("Error code can't be greater than %d", UINT8_MAX));
+        errorAt(stmt.code.view, formatStr("Error code can't be greater than %d", UINT8_MAX));
         return;
     }
     emitByte(OpExit, (u8)stmt.code.value);
@@ -293,7 +307,7 @@ void Compiler::exitStmt(ExitStmt& stmt) {
 
 void Compiler::returnStmt(Ptr<ReturnStmt> stmt) {
     if (chunkData->global) {
-        error("Return outside function");
+        errorAt(stmt->view, "Return outside function");
         return;
     }
 
@@ -343,7 +357,27 @@ void Compiler::whileLoop(Ptr<WhileLoop>& stmt) {
 }
 
 void Compiler::forLoop(Ptr<ForLoop>& stmt) {
-    error("For loops are not supported yet");
+    internalError("For loops are not supported yet");
+}
+
+void Compiler::typeDeclaration(Ptr<TypeDeclaration>& stmt) {
+    emitByte(OpType, makeNameConstant(stmt->name.name, stmt->name.view));
+
+    if (stmt->parents.size() > UINT8_MAX) {
+        SourceView view = stmt->parents[UINT8_MAX].view | stmt->parents.back().view;
+        errorAt(view, formatStr("Too many types to inherit from (max: %d, you have %d)", UINT8_MAX, stmt->parents.size()));
+        return;
+    }
+
+    if (stmt->parents.size()) {
+        for (auto& parent : stmt->parents) {
+            identifier(parent, true);
+        }
+        
+        emitByte(OpInherit, (u8)stmt->parents.size());
+    }
+
+    // Add code for methods
 }
 
 void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
@@ -353,18 +387,19 @@ void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
 
     chunkData->localOffset = 1;
 
+    if (stmt->args.size() > UINT8_MAX) {
+        SourceView view = stmt->args[UINT8_MAX].view | stmt->args.back().view;
+        errorAt(view, formatStr("Too many arguments in function declaration (max: %d, you have %d)", UINT8_MAX, stmt->args.size()));
+        return;
+    }
+
     for (auto& arg : stmt->args) {
-        addLocal(arg.name);
+        addLocal(arg.name, arg.view);
     }
 
     body(stmt->body);
     endScope();
     emitByte(OpReturn);
-
-    if (stmt->args.size() > UINT8_MAX) {
-        error(formatStr("Too many arguments in function declaration (max: %d)", UINT8_MAX));
-        return;
-    }
 
     for (auto& upValue : chunkData->upValues) {
         chunkData->enclosing->chunk.bytecode.push_back(upValue.index);
@@ -378,7 +413,7 @@ void Compiler::funcDeclaration(Ptr<FuncDeclaration>& stmt) {
         endChunk(),
     };
 
-    declare(stmt->name.name);
+    declare(stmt->name.name, stmt->name.view);
     getChunk()->constants.prototypes.push_back(prot);
 }
 
@@ -388,18 +423,18 @@ void Compiler::varDeclaration(Ptr<VarDeclaration>& stmt) {
     } else {
         expression(stmt->expr);
     }
-    declare(stmt->target.name);
+    declare(stmt->target.name, stmt->target.view);
 }
 
 void Compiler::expression(Expr expr) {
     switch (expr.which()) {
         case Expr::which<NumLiteral>(): {
-            double value = expr.get<NumLiteral>().value;
-            if (value > UINT8_MAX || value < 0) {
-                int index = makeNumberConstant(value);
+            NumLiteral& num = expr.get<NumLiteral>();
+            if (num.value > UINT8_MAX || num.value < 0) {
+                int index = makeNumberConstant(num.value, num.view);
                 emitByte(OpNumber, (u8)index);
             } else {
-                emitByte(OpByteNumber, (u8)value);
+                emitByte(OpByteNumber, (u8)num.value);
             }
             break;
         }
@@ -410,7 +445,8 @@ void Compiler::expression(Expr expr) {
         }
 
         case Expr::which<StrLiteral>(): {
-            int index = makeNameConstant(expr.get<StrLiteral>().value);
+            StrLiteral& str = expr.get<StrLiteral>();
+            int index = makeNameConstant(str.value, str.view);
             emitByte(OpName, (u8)index);
             break;
         }
@@ -432,6 +468,7 @@ void Compiler::expression(Expr expr) {
 
         case Expr::which<Ptr<BinaryExpr>>(): {
             auto& binaryExpr = expr.get<Ptr<BinaryExpr>>();
+            marker(binaryExpr->opToken.view);
 
             if (binaryExpr->op == BinaryExpr::Operation::And) {
                 expression(binaryExpr->left);
@@ -500,10 +537,11 @@ void Compiler::expression(Expr expr) {
         case Expr::which<Ptr<UnaryExpr>>(): {
             auto& unaryExpr = expr.get<Ptr<UnaryExpr>>();
             expression(unaryExpr->expr);
+            marker(unaryExpr->opToken.view);
 
             switch (unaryExpr->op) {
                 case UnaryExpr::Operation::Negative:
-                    makeNumberConstant(-1);
+                    makeNumberConstant(-1, unaryExpr->opToken.view);
                     emitByte(OpMultiply);
                     break;
                 case UnaryExpr::Operation::Negate:
@@ -521,23 +559,34 @@ void Compiler::expression(Expr expr) {
                 expression(expr);
             }
             expression(call->target);
+
             if (call->args.size() > UINT8_MAX) {
-                error(formatStr("Too many arguments in function call (max: %d)", UINT8_MAX));
+                SourceView view = getSourceView(call->args[UINT8_MAX]);
+                for (int i = UINT8_MAX + 1; i < (signed)call->args.size(); i++) {
+                    view = view | getSourceView(call->args[i]);
+                }
+
+                errorAt(view, formatStr("Too many arguments in function call (max: %d)", UINT8_MAX));
             }
-            emitByte(OpCall, call->args.size());
+
+            marker(getSourceView(call->target));
+            emitByte(OpCall);
+            marker(call->view);
+            emitByte(call->args.size());
             break;
         }
 
         case Expr::which<Ptr<PropertyExpr>>(): {
             auto& prop = expr.get<Ptr<PropertyExpr>>();
             expression(prop->expr);
-            emitByte(OpGetProperty, makeNameConstant(prop->prop.name));
+            marker(prop->prop.view);
+            emitByte(OpGetProperty, makeNameConstant(prop->prop.name, prop->prop.view));
             break;
         }
 
         case Expr::which<Empty>():
         default:
-            error("Invalid expression");
+            internalError("Invalid expression");
             break;
     }
 }
@@ -554,12 +603,11 @@ void Compiler::assignment(Ptr<AssignmentExpr>& assignment) {
         case Expr::which<Ptr<PropertyExpr>>(): {
             auto& prop = assignment->target.get<Ptr<PropertyExpr>>();
             expression(prop->expr);
-            emitByte(OpSetProperty, makeNameConstant(prop->prop.name));
+            emitByte(OpSetProperty, makeNameConstant(prop->prop.name, prop->prop.view));
             break;
         }
 
         default:
-            error("Invalid assignment target");
             break;
     }
 }
@@ -571,14 +619,15 @@ void Compiler::identifier(Identifier& id, bool get) {
         return;
     }
 
-    int upValue = findUpValue(chunkData, id.name);
+    int upValue = findUpValue(chunkData, id.name, id.view);
     if (upValue != -1) {
         emitByte(get ? OpGetUpValue : OpSetUpValue, upValue);
         return;
     }
 
+    marker(id.view);
     emitByte(get ? OpGetGlobal : OpSetGlobal);
-    emitByte(makeNameConstant(id.name));
+    emitByte(makeNameConstant(id.name, id.view));
 }
 
 void Compiler::emitByte(u8 value) {
@@ -601,10 +650,14 @@ void Compiler::emitByte(First byte, Rest... rest) {
     emitByte(rest...);
 }
 
+void Compiler::marker(SourceView & view) {
+    getChunk()->markers.push_back({getChunk()->bytecode.size(), view});
+}
+
 void Compiler::emitJumpBackwards(u8 jump, int where) {
     int distance = getChunk()->bytecode.size() - where + 2;
     if (distance > UINT16_MAX) {
-        error("Condition jump too large");
+        internalError("Condition jump too large");
         return;
     }
 
@@ -619,7 +672,7 @@ int Compiler::emitJumpForwards(u8 jump) {
 void Compiler::patchJump(int index) {
     int distance = getChunk()->bytecode.size() - index - 2;
     if (distance > UINT16_MAX) {
-        error("Condition jump too large");
+        internalError("Condition jump too large");
         return;
     }
 

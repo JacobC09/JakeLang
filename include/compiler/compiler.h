@@ -1,7 +1,9 @@
 #pragma once
 #include "compiler/bytecode.h"
 #include "syntax/ast.h"
+#include "syntax/scanner.h"
 #include "util.h"
+#include "error.h"
 
 struct Prototype;
 
@@ -13,6 +15,7 @@ struct ConstantPool {
 
 struct Chunk {
     std::vector<u8> bytecode;
+    std::vector<std::pair<int, SourceView>> markers;
     ConstantPool constants;
 };
 
@@ -55,10 +58,11 @@ struct LoopData {
 
 class Compiler {
 public:
-    Compiler() = default;
+    Compiler(std::string& path) : path(path) {};
 
     Chunk compile(Ast& ast);
     bool failed();
+    Error getError();
 
 private:
     // Chunk
@@ -75,25 +79,26 @@ private:
     void endLoop();
 
     // Error
-    void error(std::string msg);
+    void errorAt(SourceView token, std::string msg, std::string note="");
+    void internalError(std::string msg);
 
     // Constants
-    int makeNumberConstant(double value);
-    int makeNameConstant(std::string value);
+    int makeNumberConstant(double value, SourceView view);
+    int makeNameConstant(std::string value, SourceView view);
 
     // Locals
-    void addLocal(std::string name);
-    int addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool isLocal);
+    void addLocal(std::string name, SourceView view);
+    int addUpValue(std::unique_ptr<ChunkData>& chunk, u8 index, bool isLocal, SourceView view);
     int findLocal(std::unique_ptr<ChunkData>& chunk, std::string name);
-    int findUpValue(std::unique_ptr<ChunkData>& chunk, std::string name);
+    int findUpValue(std::unique_ptr<ChunkData>& chunk, std::string name, SourceView view);
 
     // Variables
-    void declare(std::string name);
+    void declare(std::string name, SourceView view);
 
     // Statements
     void body(std::vector<Stmt>& stmts);
-    void breakStmt();
-    void continueStmt();
+    void breakStmt(BreakStmt& stmt);
+    void continueStmt(ContinueStmt& stmt);
     void exitStmt(ExitStmt& stmt);
     void returnStmt(Ptr<ReturnStmt> stmt);
     void printStmt(Ptr<PrintStmt>& stmt);
@@ -101,6 +106,7 @@ private:
     void loopBlock(Ptr<LoopBlock>& stmt);
     void whileLoop(Ptr<WhileLoop>& stmt);
     void forLoop(Ptr<ForLoop>& stmt);
+    void typeDeclaration(Ptr<TypeDeclaration>& stmt);
     void funcDeclaration(Ptr<FuncDeclaration>& stmt);
     void varDeclaration(Ptr<VarDeclaration>& stmt);
 
@@ -117,11 +123,16 @@ private:
     template <typename First, typename... Rest>
     void emitByte(First byte, Rest... rest);
 
+    // Marker
+    void marker(SourceView& view);
+
     // Emit Jump
     void emitJumpBackwards(u8 jump, int where);
     int emitJumpForwards(u8 jump);
     void patchJump(int index);
 
     bool hadError;
+    Error error;
+    std::string& path;
     std::unique_ptr<ChunkData> chunkData;
 };

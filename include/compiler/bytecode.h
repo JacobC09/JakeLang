@@ -42,4 +42,7 @@ enum Instructions : u8 {
     OpJumpPopIfFalse,
     OpFunction,
     OpCall,
+    OpType,
+    OpInherit,
+    OpBindMethod
 };
